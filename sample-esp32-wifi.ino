@@ -24,29 +24,43 @@ void loop()
 {
   if (WiFi.status() == WL_CONNECTED)
   {
-    long random_number = random(1, 10);
     HTTPClient client;
+    client.begin("https://jsonplaceholder.typicode.com/posts");
+    client.addHeader("Content-Type", "application/json");
 
-    String url = "https://jsonplaceholder.typicode.com/posts/" + String(random_number);
-    client.begin(url);
-    int http_status_code = client.GET();
+    // Serialize data for POST request
+    StaticJsonDocument<200> doc;
+    doc["title"] = "Test Post Title";
+    doc["body"] = "This is a test post body content";
+    doc["userId"] = 1;
+    String jsonPayload;
+    serializeJson(doc, jsonPayload);
+
+    // Make POST request
+    int http_status_code = client.POST(jsonPayload);
 
     if (http_status_code > 0)
     {
-      String payload = client.getString();
+      String responsePayload = client.getString();
       Serial.println("\nStatus Code: " + String(http_status_code));
-      Serial.println("Payload:\n" + payload);
+      Serial.println("Response Payload:\n" + responsePayload);
 
-      StaticJsonDocument<500> doc;
-      DeserializationError error = deserializeJson(doc, payload);
+      // Deserialize the response
+      StaticJsonDocument<500> responseDoc;
+      DeserializationError error = deserializeJson(responseDoc, responsePayload);
 
       if (!error)
       {
-        int id = doc["id"];
-        const char *title = doc["title"];
+        int id = responseDoc["id"];
+        const char *title = responseDoc["title"];
+        const char *body = responseDoc["body"];
+        int userId = responseDoc["userId"];
 
-        Serial.println("Id: " + String(id));
+        Serial.println("\nDeserialized Response:");
+        Serial.println("ID: " + String(id));
+        Serial.println("User ID: " + String(userId));
         Serial.println("Title: " + String(title));
+        Serial.println("Body: " + String(body));
       }
       else
       {

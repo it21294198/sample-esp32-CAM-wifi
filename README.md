@@ -5,3 +5,5 @@
 2. sample-http-GET --> By using `https://jsonplaceholder.typicode.com/posts/` public URL HTTP GET request is send to get random post between 1 and 10.
 
 3. http-GET-deserialization --> Deserialize the data from `https://jsonplaceholder.typicode.com/posts/` integer id and string title.
+
+4. http-POST-request-response --> serialize the request into JSON and the deserialize repose into JSON.
