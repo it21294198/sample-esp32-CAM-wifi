@@ -8,4 +8,8 @@
 
 4. http-POST-request-response --> serialize the request into JSON and the deserialize repose into JSON.
 
+    [Watch this video before start](https://youtu.be/dblfMlRa6qI?si=67M8xsb1UXYhFG5M)
+
 5. take-image-send-http-POST --> send HTTP POST base64 image
+
+    [Watch this video before start](https://youtu.be/z67mfL63e2M?si=etlI8A6lW7rNlzY0)
