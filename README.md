@@ -7,3 +7,5 @@
 3. http-GET-deserialization --> Deserialize the data from `https://jsonplaceholder.typicode.com/posts/` integer id and string title.
 
 4. http-POST-request-response --> serialize the request into JSON and the deserialize repose into JSON.
+
+5. take-image-send-http-POST --> send HTTP POST base64 image
