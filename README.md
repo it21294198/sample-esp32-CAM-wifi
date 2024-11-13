@@ -13,3 +13,7 @@
 5. take-image-send-http-POST --> send HTTP POST base64 image
 
     [Watch this video before start](https://youtu.be/z67mfL63e2M?si=etlI8A6lW7rNlzY0)
+
+6. make-process-asynchronous --> sending image and getting back process
+
+    [Go and Decode the Base64 image](https://base64.guru/converter/decode/image)
