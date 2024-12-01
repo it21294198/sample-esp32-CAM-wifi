@@ -17,3 +17,16 @@
 6. make-process-asynchronous --> sending image and getting back process
 
     [Go and Decode the Base64 image](https://base64.guru/converter/decode/image)
+
+7. ### setup
+   ![Setup Image](image.png)
+
+    ```
+    ESP32 (Master)     Arduino (Slave)
+    SDA (PIN 15) ----- SDA (A4/SDA)
+    SCL (PIN 14) ----- SCL (A5/SCL)
+    GND -------------- GND
+
+    Button connection on Arduino:
+    Pin 2 ------------ GND (Act as a button)
+    ```
