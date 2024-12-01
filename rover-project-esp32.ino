@@ -4,7 +4,6 @@
 
 // Camera and network libs
 #include "esp_camera.h"
-#include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "base64.h"
@@ -13,7 +12,6 @@
 
 // Communication libs
 #include <Wire.h>
-#include <ArduinoJson.h>
 
 // Select camera model
 #define CAMERA_MODEL_AI_THINKER
@@ -23,9 +21,7 @@
 #define I2C_SLAVE_ADDR 0x08
 #define SDA_PIN 15
 #define SCL_PIN 14
-#define JSON_CAPACITY 256
-
-StaticJsonDocument<JSON_CAPACITY> responseDoc;
+#define JSON_CAPACITY 512
 
 // ESP32 Access Point Settings
 const char* ap_ssid = "ESP32-Config-AP";
@@ -35,138 +31,121 @@ WebServer server(80);
 
 String ssid = "";
 String password = "";
-String serverIP = "rusiii.com";
 bool isConnected = false; // Flag to indicate Wi-Fi connection status
 
-// Queue handle for frame buffer queue
-QueueHandle_t frameQueue;
-QueueHandle_t uploadQueue;
+// Camera capture and upload function
+bool captureAndUploadImage() {
+    // Capture photo
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb) {
+        Serial.println("Camera capture failed");
+        return false;
+    }
 
-// Task handles
-TaskHandle_t captureTaskHandle;
-TaskHandle_t uploadTaskHandle;
+    // Convert to base64
+    String base64Image = base64::encode(fb->buf, fb->len);
 
-// Struct to hold frame buffer data
-struct FrameData
-{
-    uint8_t *buf;
-    size_t len;
-};
+    // Return the frame buffer to the driver
+    esp_camera_fb_return(fb);
 
-// Camera capture task
-void captureTask(void *parameter)
-{
-    while (true)
-    {
-        if (WiFi.status() == WL_CONNECTED)
-        {
-            // Capture photo
-            camera_fb_t *fb = esp_camera_fb_get();
-            if (!fb)
-            {
-                Serial.println("Camera capture failed");
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                continue;
-            }
+    // Prepare JSON payload
+    StaticJsonDocument<1024> doc;
 
-            // Allocate memory for frame data
-            FrameData *frame = (FrameData *)malloc(sizeof(FrameData));
-            frame->len = fb->len;
-            frame->buf = (uint8_t *)malloc(fb->len);
-            memcpy(frame->buf, fb->buf, fb->len);
+    doc["roverId"] = 1;
+    doc["randomId"] = 1234;
+    doc["batteryStatus"] = 12.3;
+    doc["temp"] = 12.3;
+    doc["humidity"] = 12.3;
+    doc["imageData"] = base64Image;
 
-            // Return the frame buffer to the driver
-            esp_camera_fb_return(fb);
+    String jsonPayload;
+    serializeJson(doc, jsonPayload);
 
-            // Send frame to processing queue
-            if (xQueueSend(frameQueue, &frame, portMAX_DELAY) != pdPASS)
-            {
-                // If queue is full, free the allocated memory
-                free(frame->buf);
-                free(frame);
-                Serial.println("Frame queue full");
-            }
+    // Make POST request
+    HTTPClient http;
+    http.begin("https://axum-jwt-static-page-template-4gs7.shuttle.app/test/rover"); 
+    http.addHeader("Content-Type", "application/json");
+
+    int httpResponseCode = http.POST(jsonPayload);
+    if (httpResponseCode > 0) {
+        String response = http.getString();
+        Serial.println("HTTP Response code: " + String(httpResponseCode));
+        Serial.println("Response: " + response);
+
+        // Parse JSON response
+        StaticJsonDocument<512> responseDoc;
+        DeserializationError error = deserializeJson(responseDoc, response);
+        
+        if (error) {
+            Serial.print("JSON parsing failed: ");
+            Serial.println(error.c_str());
+            http.end();
+            return false;
         }
-        vTaskDelay(pdMS_TO_TICKS(100)); // Small delay between captures
+
+        // Check if imageResult exists and is an array
+        if (responseDoc.containsKey("imageResult") && responseDoc["imageResult"].is<JsonArray>()) {
+            sendResponseToArduino(responseDoc["imageResult"].as<JsonArray>());
+        }
+
+        http.end();
+        return true;
+    } else {
+        Serial.println("Error on HTTP request");
+        Serial.println("Error code: " + String(httpResponseCode));
+        http.end();
+        return false;
     }
 }
 
-// Process and encode task
-void processTask(void *parameter)
-{
-    while (true)
-    {
-        FrameData *frame;
-        // Receive frame from queue
-        if (xQueueReceive(frameQueue, &frame, portMAX_DELAY) == pdPASS)
-        {
-            // Convert to base64
-            String *base64Image = new String(base64::encode(frame->buf, frame->len));
-
-            // Free the original frame data
-            free(frame->buf);
-            free(frame);
-
-            // Send to upload queue
-            if (xQueueSend(uploadQueue, &base64Image, portMAX_DELAY) != pdPASS)
-            {
-                delete base64Image;
-                Serial.println("Upload queue full");
+void sendResponseToArduino(JsonArray imageResult) {
+    // Clear previous document
+    StaticJsonDocument<JSON_CAPACITY> responseDoc;
+    
+    // Create nested array for points
+    JsonArray array = responseDoc.createNestedArray("points");
+    
+    // Correctly iterate through the image result array
+    for (JsonVariant point : imageResult) {
+        JsonObject newPoint = array.createNestedObject();
+        newPoint["x"] = point["x"].as<float>();
+        newPoint["y"] = point["y"].as<float>();
+    }
+    
+    // Serialize JSON to buffer
+    char jsonBuffer[JSON_CAPACITY];
+    size_t len = serializeJson(responseDoc, jsonBuffer);
+    
+    // Send length first
+    Wire.beginTransmission(I2C_SLAVE_ADDR);
+    Wire.write((byte)(len & 0xFF));  // Lower byte of length
+    Wire.write((byte)(len >> 8));    // Upper byte of length
+    byte error = Wire.endTransmission();
+    
+    if (error == 0) {
+        // Send JSON data in chunks
+        for (size_t i = 0; i < len; i++) {
+            Wire.beginTransmission(I2C_SLAVE_ADDR);
+            Wire.write(jsonBuffer[i]);
+            error = Wire.endTransmission();
+            
+            if (error != 0) {
+                Serial.print("Error sending chunk. Error code: ");
+                Serial.println(error);
+                break;
             }
+            delay(5);  // Small delay between chunks
         }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to prevent watchdog triggers
+        
+        Serial.println("Response sent successfully");
+    } else {
+        Serial.print("Error sending length. Error code: ");
+        Serial.println(error);
     }
 }
-
-// Upload task
-void uploadTask(void *parameter)
-{
-    while (true)
-    {
-        String *base64Image;
-        // Receive encoded image from queue
-        if (xQueueReceive(uploadQueue, &base64Image, portMAX_DELAY) == pdPASS)
-        {
-            if (WiFi.status() == WL_CONNECTED)
-            {
-                // Prepare JSON payload
-                StaticJsonDocument<1024> doc;
-                doc["title"] = "ESP32-CAM Photo";
-                doc["userId"] = 1;
-                doc["body"] = *base64Image;
-                String jsonPayload;
-                serializeJson(doc, jsonPayload);
-
-                // Clean up base64 string
-                delete base64Image;
-
-                // Make POST request
-                HTTPClient http;
-                http.begin("https://jsonplaceholder.typicode.com/posts"); // Replace with your server endpoint
-                http.addHeader("Content-Type", "application/json");
-
-                int httpResponseCode = http.POST(jsonPayload);
-                if (httpResponseCode > 0)
-                {
-                    String response = http.getString();
-                    Serial.println("HTTP Response code: " + String(httpResponseCode));
-                    Serial.println("Response: " + response);
-                }
-                else
-                {
-                    Serial.println("Error on HTTP request");
-                    Serial.println("Error code: " + String(httpResponseCode));
-                }
-                http.end();
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to prevent watchdog triggers
-    }
-}
-
 
 void handleRoot() {
-  server.send(200, "text/html", R"rawliteral(
+server.send(200, "text/html", R"rawliteral(
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -241,10 +220,10 @@ void handleRoot() {
 }
 
 void handleSubmit() {
-  ssid = server.arg("ssid");
-  password = server.arg("password");
+    ssid = server.arg("ssid");
+    password = server.arg("password");
 
-  String response = R"rawliteral(
+String response = R"rawliteral(
   <!DOCTYPE html>
   <html lang="en">
   <head>
@@ -298,34 +277,32 @@ void handleSubmit() {
   </html>
   )rawliteral";
 
-  response.replace("[[SSID]]", ssid);
-  server.send(200, "text/html", response);
+    response.replace("[[SSID]]", ssid);
+    server.send(200, "text/html", response);
 
-  // Try to connect to the provided Wi-Fi network
-  WiFi.softAPdisconnect(true); // Disconnect from the access point
-  WiFi.begin(ssid.c_str(), password.c_str());
+    // Try to connect to the provided Wi-Fi network
+    WiFi.softAPdisconnect(true); // Disconnect from the access point
+    WiFi.begin(ssid.c_str(), password.c_str());
 
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
+    unsigned long startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+        delay(500);
+        Serial.print(".");
+    }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    isConnected = true; // Update the flag to indicate connection success
-    Serial.println("Connected!");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    Serial.println(serverIP);
-    server.send(200, "text/html", "Connected to Wi-Fi! IP address: " + WiFi.localIP().toString());
-  } else {
-    Serial.println("Failed to connect.");
-    server.send(200, "text/html", "Failed to connect to Wi-Fi.");
-  }
+    if (WiFi.status() == WL_CONNECTED) {
+        isConnected = true; // Update the flag to indicate connection success
+        Serial.println("Connected!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("Failed to connect.");
+        // Revert to AP mode if connection fails
+        WiFi.softAP(ap_ssid, ap_password);
+    }
 }
 
-void WIFI_Config(){
+void WIFI_Config() {
     // Set up the access point
     WiFi.softAP(ap_ssid, ap_password);
 
@@ -340,12 +317,12 @@ void WIFI_Config(){
 
     // Handle incoming client requests in a while loop
     while (!isConnected) {
-      server.handleClient();
+        server.handleClient();
+        delay(10); // Add a small delay to prevent watchdog timer issues
     }
 }
 
-void Camara_Config(){
-
+void Camara_Config() {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector
 
     camera_config_t config;
@@ -375,23 +352,19 @@ void Camara_Config(){
     config.jpeg_quality = 12;
     config.fb_count = 2;
 
-    if (psramFound())
-    {
+    if (psramFound()) {
         config.jpeg_quality = 10;
         config.fb_count = 2;
         config.grab_mode = CAMERA_GRAB_LATEST;
-    }
-    else
-    {
+    } else {
         config.frame_size = FRAMESIZE_SVGA;
         config.fb_location = CAMERA_FB_IN_DRAM;
     }
 
     // Initialize camera
     esp_err_t err = esp_camera_init(&config);
-    if (err != ESP_OK)
-    {
-        Serial.printf("Camera init failed with error 0x%x", err);
+    if (err != ESP_OK) {
+        Serial.printf("Camera init failed with error 0x%x\n", err);
         return;
     }
 
@@ -399,62 +372,17 @@ void Camara_Config(){
     sensor_t *s = esp_camera_sensor_get();
     s->set_framesize(s, FRAMESIZE_VGA);
     s->set_quality(s, 10);
+}
 
-    // Connect to WiFi
-    WiFi.begin(ssid, password);
-    WiFi.setSleep(false);
-
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.print(".");
+void I2c_Config() {
+    if (!Wire.begin(SDA_PIN, SCL_PIN, 100000)) {
+        Serial.println("I2C initialization failed!");
+        while(1);
     }
-    Serial.println("\nWiFi connected");
-
-    // Create queues
-    frameQueue = xQueueCreate(2, sizeof(FrameData *));
-    uploadQueue = xQueueCreate(2, sizeof(String *));
-
-    // Create tasks
-    xTaskCreatePinnedToCore(
-        captureTask,
-        "CaptureTask",
-        8192,
-        NULL,
-        1,
-        &captureTaskHandle,
-        0);
-
-    xTaskCreatePinnedToCore(
-        processTask,
-        "ProcessTask",
-        8192,
-        NULL,
-        1,
-        NULL,
-        1);
-
-    xTaskCreatePinnedToCore(
-        uploadTask,
-        "UploadTask",
-        8192,
-        NULL,
-        1,
-        &uploadTaskHandle,
-        1);
-
+    Serial.println("ESP32 I2C Master initialized");
 }
 
-void I2c_Config(){
-  if (!Wire.begin(SDA_PIN, SCL_PIN, 100000)) {
-    Serial.println("I2C initialization failed!");
-    while(1);
-  }
-  Serial.println("ESP32 I2C Master initialized");
-}
-
-void setup()
-{
+void setup() {
     Serial.begin(115200);
     Serial.setDebugOutput(true);
     Serial.println();
@@ -464,117 +392,34 @@ void setup()
     I2c_Config();
 }
 
-bool I2c_Communication_loop(){
-  // Request 1 byte from slave to check button state
-  Wire.requestFrom(I2C_SLAVE_ADDR, 1);
-  
-  if (Wire.available()) {
-    byte buttonState = Wire.read();
+void loop() {
+    // Check button state via I2C
+    Wire.requestFrom(I2C_SLAVE_ADDR, 1);
     
-    // Only send data if button is pressed (buttonState == 1)
-    if (buttonState == 1) {
-      // Create JSON data
-      responseDoc.clear();
-      JsonArray array = responseDoc.createNestedArray("points");
-      
-      JsonObject point1 = array.createNestedObject();
-      point1["x"] = 2200;
-      point1["y"] = 2500;
-      point1["z"] = 2000;
-
-      JsonObject point2 = array.createNestedObject();
-      point2["x"] = 2200;
-      point2["y"] = 2500;
-      point2["z"] = 2000;
-      
-      // Serialize JSON to buffer
-      char jsonBuffer[JSON_CAPACITY];
-      size_t len = serializeJson(responseDoc, jsonBuffer);
-      
-      // Send length first
-      Wire.beginTransmission(I2C_SLAVE_ADDR);
-      Wire.write((byte)(len & 0xFF));  // Lower byte of length
-      Wire.write((byte)(len >> 8));    // Upper byte of length
-      byte error = Wire.endTransmission();
-      
-      if (error == 0) {
-        // Send JSON data in chunks
-        for(size_t i = 0; i < len; i++) {
-          Wire.beginTransmission(I2C_SLAVE_ADDR);
-          Wire.write(jsonBuffer[i]);
-          error = Wire.endTransmission();
-          
-          if (error != 0) {
-            Serial.print("Error sending chunk. Error code: ");
-            Serial.println(error);
-            break;
-          }
-          delay(5);  // Small delay between chunks
-        }
+    if (Wire.available()) {
+        byte buttonState = Wire.read();
         
-        Serial.println("Data sent to Arduino");
-        serializeJsonPretty(responseDoc, Serial);
-        Serial.println();
-        delay(5);  // Small delay between chunks
-        return true;
-      } else {
-        Serial.print("Error sending length. Error code: ");
-        Serial.println(error);
-        delay(500);  // Small delay between chunks
-        return false;
-      }
-    }else if(buttonState == 2){
-        Serial.println("buttonState is 2");
-        delay(500);  // Small delay between chunks
-        return false;
-    }else{
-        Serial.println("Waiting on idle state");
-        delay(500);  // Small delay between chunks
-        return false;
-    }
-  }
-}
-
-// void loop()
-// {
-//   Serial.println("Connected to the WIFI, Main Loop is running");
-//     if(I2c_Communication_loop()){
-//       Serial.println("Image is taken and send to backend");
-//       vTaskDelay(pdMS_TO_TICKS(1000));
-//       delay(1000);
-//     }
-// }
-void loop()
-{
-    Serial.println("Connected to the WIFI, Main Loop is running");
-    if(I2c_Communication_loop()){
-        // Capture photo when I2C communication indicates button press
-        camera_fb_t *fb = esp_camera_fb_get();
-        if (!fb) {
-            Serial.println("Camera capture failed");
-            return;
+        // Only capture and upload if button state is 1
+        if (buttonState == 1) {
+            Serial.println("Button pressed. Capturing and uploading image...");
+            
+            if (WiFi.status() == WL_CONNECTED) {
+                if (captureAndUploadImage()) {
+                    Serial.println("Image captured and uploaded successfully");
+                } else {
+                    Serial.println("Failed to capture or upload image");
+                }
+            } else {
+                Serial.println("WiFi not connected");
+                // Attempt to reconnect
+                WiFi.reconnect();
+            }
+            
+            // Add a delay to prevent multiple captures
+            delay(2000);
         }
-
-        // Allocate memory for frame data
-        FrameData *frame = (FrameData *)malloc(sizeof(FrameData));
-        frame->len = fb->len;
-        frame->buf = (uint8_t *)malloc(fb->len);
-        memcpy(frame->buf, fb->buf, fb->len);
-
-        // Return the frame buffer to the driver
-        esp_camera_fb_return(fb);
-
-        // Send frame to processing queue
-        if (xQueueSend(frameQueue, &frame, portMAX_DELAY) != pdPASS)
-        {
-            // If queue is full, free the allocated memory
-            free(frame->buf);
-            free(frame);
-            Serial.println("Frame queue full");
-        }
-
-        Serial.println("Image is taken and sent to backend");
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        delay(1000);
     }
+    
+    // Small delay to prevent excessive polling
+    delay(500);
 }
