@@ -17,6 +17,14 @@
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
+// Flash Memory
+#include <EEPROM.h>
+
+// EEPROM configuration
+#define EEPROM_SIZE 128
+#define SSID_ADDR 0
+#define PASSWORD_ADDR 64
+
 // I2C settings
 #define I2C_SLAVE_ADDR 0x08
 #define SDA_PIN 15
@@ -29,9 +37,15 @@ const char* ap_password = "";  // No password for open access point
 
 WebServer server(80);
 
+bool isConnected = false; // Flag to indicate Wi-Fi connection status
+
+// defalt or from user
 String ssid = "";
 String password = "";
-bool isConnected = false; // Flag to indicate Wi-Fi connection status
+
+// from EEPROM
+String client_ssid;
+String client_password;
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -58,6 +72,7 @@ bool captureAndUploadImage() {
     doc["humidity"] = 12.3;
     doc["imageData"] = base64Image;
 
+    Serial.println(base64Image);
     String jsonPayload;
     serializeJson(doc, jsonPayload);
 
@@ -145,7 +160,7 @@ void sendResponseToArduino(JsonArray imageResult) {
 }
 
 void handleRoot() {
-server.send(200, "text/html", R"rawliteral(
+String response = R"rawliteral(
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -208,15 +223,19 @@ server.send(200, "text/html", R"rawliteral(
         <h1>Login</h1>
         <form action="/submit" method="POST">
           <label for="username">Username</label>
-          <input type="text" id="ssid" name="ssid" placeholder="Enter WIFI Router Name" required>
+          <input type="text" id="ssid" name="ssid" value="[[ssid]]" placeholder="Enter WIFI Router Name" required>
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" placeholder="Enter WIFI Router Password" required>
+          <input type="password" id="password" name="password" value="[[password]]" placeholder="Enter WIFI Router Password" required>
           <input type="submit" value="Submit">
         </form>
       </div>
     </body>
     </html>
-  )rawliteral");
+  )rawliteral";
+
+  response.replace("[[ssid]]", ssid);
+  response.replace("[[password]]", password);
+  server.send(200, "text/html", response);
 }
 
 void handleSubmit() {
@@ -302,6 +321,57 @@ String response = R"rawliteral(
     }
 }
 
+// Function to write a string to EEPROM
+void writeStringToEEPROM(int address, const String& data) {
+    for (int i = 0; i < data.length(); ++i) {
+        EEPROM.write(address + i, data[i]);
+    }
+    EEPROM.write(address + data.length(), '\0'); // Null-terminate the string
+    EEPROM.commit();
+}
+
+// Function to read a string from EEPROM
+String readStringFromEEPROM(int address) {
+    String data = "";
+    char ch;
+    for (int i = 0; i < 64; ++i) { // Read up to 64 characters
+        ch = EEPROM.read(address + i);
+        if (ch == '\0') break; // Stop at null terminator
+        data += ch;
+    }
+    return data;
+}
+
+void EEPROM_Config_Begin(){
+  Serial.println("EEPROM Data RW stated.");
+
+  // Initialize EEPROM
+  EEPROM.begin(EEPROM_SIZE);
+
+  // Retrieve stored credentials
+  client_ssid = readStringFromEEPROM(SSID_ADDR);
+  client_password = readStringFromEEPROM(PASSWORD_ADDR);
+
+  Serial.print("Stored SSID: ");
+  Serial.println(client_ssid);
+  Serial.print("Stored Password: ");
+  Serial.println(client_password);
+
+  ssid = client_ssid;
+  password = client_password;
+}
+
+void EEPROM_Config_End(){
+  // Save credentials to EEPROM
+  if(ssid != client_ssid){
+    writeStringToEEPROM(SSID_ADDR, ssid);
+  }
+  if(password != client_password){
+    writeStringToEEPROM(PASSWORD_ADDR, password);
+  }
+
+}
+
 void WIFI_Config() {
     // Set up the access point
     WiFi.softAP(ap_ssid, ap_password);
@@ -383,26 +453,18 @@ void I2c_Config() {
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     Serial.setDebugOutput(true);
     Serial.println();
 
+    EEPROM_Config_Begin();
     WIFI_Config();
     Camara_Config();
     I2c_Config();
+    EEPROM_Config_End();
 }
 
 void loop() {
-    // Check button state via I2C
-    Wire.requestFrom(I2C_SLAVE_ADDR, 1);
-    
-    if (Wire.available()) {
-        byte buttonState = Wire.read();
-        
-        // Only capture and upload if button state is 1
-        if (buttonState == 1) {
-            Serial.println("Button pressed. Capturing and uploading image...");
-            
             if (WiFi.status() == WL_CONNECTED) {
                 if (captureAndUploadImage()) {
                     Serial.println("Image captured and uploaded successfully");
@@ -417,9 +479,4 @@ void loop() {
             
             // Add a delay to prevent multiple captures
             delay(2000);
-        }
-    }
-    
-    // Small delay to prevent excessive polling
-    delay(500);
 }
