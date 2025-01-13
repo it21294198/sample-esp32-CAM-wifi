@@ -23,7 +23,8 @@
 // EEPROM configuration
 #define EEPROM_SIZE 128
 #define SSID_ADDR 0
-#define PASSWORD_ADDR 64
+#define PASSWORD_ADDR 32
+#define UID_ADDR 96
 
 // I2C settings
 #define I2C_SLAVE_ADDR 0x08
@@ -42,10 +43,12 @@ bool isConnected = false; // Flag to indicate Wi-Fi connection status
 // defalt or from user
 String ssid = "";
 String password = "";
+int uid = 1;
 
 // from EEPROM
 String client_ssid;
 String client_password;
+int client_uid;
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -65,7 +68,7 @@ bool captureAndUploadImage() {
     // Prepare JSON payload
     StaticJsonDocument<1024> doc;
 
-    doc["roverId"] = 1;
+    doc["roverId"] = uid;
     doc["randomId"] = 1234;
     doc["batteryStatus"] = 12.3;
     doc["temp"] = 12.3;
@@ -222,10 +225,16 @@ String response = R"rawliteral(
       <div class="form-container">
         <h1>Login</h1>
         <form action="/submit" method="POST">
+
+          <label for="username">User ID</label>
+          <input type="text" id="ssid" name="uid" value="[[uid]]" placeholder="Enter User Id" required>
+
           <label for="username">Username</label>
           <input type="text" id="ssid" name="ssid" value="[[ssid]]" placeholder="Enter WIFI Router Name" required>
+
           <label for="password">Password</label>
           <input type="password" id="password" name="password" value="[[password]]" placeholder="Enter WIFI Router Password" required>
+
           <input type="submit" value="Submit">
         </form>
       </div>
@@ -235,12 +244,14 @@ String response = R"rawliteral(
 
   response.replace("[[ssid]]", ssid);
   response.replace("[[password]]", password);
+  response.replace("[[uid]]", String(uid));
   server.send(200, "text/html", response);
 }
 
 void handleSubmit() {
-    ssid = server.arg("ssid");
-    password = server.arg("password");
+  ssid = server.arg("ssid");
+  password = server.arg("password");
+  uid = server.arg("uid").toInt();
 
 String response = R"rawliteral(
   <!DOCTYPE html>
@@ -289,6 +300,7 @@ String response = R"rawliteral(
     <div class="container">
       <h1>Connection Details</h1>
       <p><strong>SSID:</strong> <span class="highlight">[[SSID]]</span></p>
+      <p><strong>SSID:</strong> <span class="highlight">User ID: [[UID]]</span></p>
       <p><a href="http://192.168.4.1">If not Connected Re-Connect to The Rover and Click on This</a></p>
       <p>Connecting to the server. Please wait...</p>
     </div>
@@ -297,6 +309,7 @@ String response = R"rawliteral(
   )rawliteral";
 
     response.replace("[[SSID]]", ssid);
+    response.replace("[[UID]]", String(uid));
     server.send(200, "text/html", response);
 
     // Try to connect to the provided Wi-Fi network
@@ -351,7 +364,10 @@ void EEPROM_Config_Begin(){
   // Retrieve stored credentials
   client_ssid = readStringFromEEPROM(SSID_ADDR);
   client_password = readStringFromEEPROM(PASSWORD_ADDR);
+  client_uid = EEPROM.read(UID_ADDR);
 
+  Serial.print("Stored UID: ");
+  Serial.println(client_uid);
   Serial.print("Stored SSID: ");
   Serial.println(client_ssid);
   Serial.print("Stored Password: ");
@@ -359,6 +375,7 @@ void EEPROM_Config_Begin(){
 
   ssid = client_ssid;
   password = client_password;
+  uid = client_uid;
 }
 
 void EEPROM_Config_End(){
@@ -368,6 +385,12 @@ void EEPROM_Config_End(){
   }
   if(password != client_password){
     writeStringToEEPROM(PASSWORD_ADDR, password);
+  }
+
+  // change EEPROM data in middle if needed
+  if(uid != client_uid){
+    EEPROM.write(UID_ADDR, uid);
+    EEPROM.commit();
   }
 
 }
