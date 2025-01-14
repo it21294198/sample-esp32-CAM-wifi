@@ -1,3 +1,6 @@
+// Comment for test to production version
+#define SERIAL_DEBUG
+
 // Server libs
 #include <WiFi.h>
 #include <WebServer.h>
@@ -63,7 +66,9 @@ bool captureAndUploadImage() {
     // Capture photo
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
+        #ifdef SERIAL_DEBUG
         Serial.println("Camera capture failed");
+        #endif
         return false;
     }
 
@@ -95,16 +100,21 @@ bool captureAndUploadImage() {
     int httpResponseCode = http.POST(jsonPayload);
     if (httpResponseCode > 0) {
         String response = http.getString();
+        #ifdef SERIAL_DEBUG
         Serial.println("HTTP Response code: " + String(httpResponseCode));
         Serial.println("Response: " + response);
+        #endif
 
         // Parse JSON response
         StaticJsonDocument<512> responseDoc;
         DeserializationError error = deserializeJson(responseDoc, response);
         
         if (error) {
+            #ifdef SERIAL_DEBUG
             Serial.print("JSON parsing failed: ");
             Serial.println(error.c_str());
+            #endif
+
             http.end();
             return false;
         }
@@ -127,8 +137,11 @@ bool captureAndUploadImage() {
         http.end();
         return true;
     } else {
+        #ifdef SERIAL_DEBUG
         Serial.println("Error on HTTP request");
         Serial.println("Error code: " + String(httpResponseCode));
+        #endif
+
         http.end();
         return false;
     }
@@ -166,17 +179,23 @@ void sendResponseToArduino(JsonArray imageResult) {
             error = Wire.endTransmission();
             
             if (error != 0) {
+                #ifdef SERIAL_DEBUG
                 Serial.print("Error sending chunk. Error code: ");
                 Serial.println(error);
+                #endif
                 break;
             }
             delay(5);  // Small delay between chunks
         }
-        
+
+        #ifdef SERIAL_DEBUG
         Serial.println("Response sent successfully");
+        #endif
     } else {
+        #ifdef SERIAL_DEBUG
         Serial.print("Error sending length. Error code: ");
         Serial.println(error);
+        #endif
     }
 }
 
@@ -337,16 +356,25 @@ String response = R"rawliteral(
     unsigned long startAttemptTime = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
         delay(500);
+        #ifdef SERIAL_DEBUG
         Serial.print(".");
+        #endif
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-        isConnected = true; // Update the flag to indicate connection success
+        // Update the flag to indicate connection success
+        isConnected = true; 
+        #ifdef SERIAL_DEBUG
         Serial.println("Connected!");
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
+        #endif
+
     } else {
+        #ifdef SERIAL_DEBUG
         Serial.println("Failed to connect.");
+        #endif
+
         // Revert to AP mode if connection fails
         WiFi.softAP(ap_ssid, ap_password);
     }
@@ -374,7 +402,9 @@ String readStringFromEEPROM(int address) {
 }
 
 void EEPROM_Config_Begin(){
-  Serial.println("EEPROM Data RW stated.");
+  #ifdef SERIAL_DEBUG
+  Serial.println("\nEEPROM Data RW stated.");
+  #endif
 
   // Initialize EEPROM
   EEPROM.begin(EEPROM_SIZE);
@@ -384,12 +414,14 @@ void EEPROM_Config_Begin(){
   client_password = readStringFromEEPROM(PASSWORD_ADDR);
   client_uid = EEPROM.read(UID_ADDR);
 
+  #ifdef SERIAL_DEBUG
   Serial.print("Stored UID: ");
   Serial.println(client_uid);
   Serial.print("Stored SSID: ");
   Serial.println(client_ssid);
   Serial.print("Stored Password: ");
   Serial.println(client_password);
+  #endif
 
   ssid = client_ssid;
   password = client_password;
@@ -417,10 +449,12 @@ void WIFI_Config() {
     // Set up the access point
     WiFi.softAP(ap_ssid, ap_password);
 
+    #ifdef SERIAL_DEBUG
     Serial.println("Access Point started");
     Serial.print("IP address: ");
     Serial.println(WiFi.softAPIP());
-
+    #endif
+    
     server.on("/", handleRoot);
     server.on("/submit", HTTP_POST, handleSubmit);
 
@@ -475,7 +509,9 @@ void Camara_Config() {
     // Initialize camera
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
+        #ifdef SERIAL_DEBUG
         Serial.printf("Camera init failed with error 0x%x\n", err);
+        #endif
         return;
     }
 
@@ -487,16 +523,22 @@ void Camara_Config() {
 
 void I2c_Config() {
     if (!Wire.begin(SDA_PIN, SCL_PIN, 100000)) {
+        #ifdef SERIAL_DEBUG
         Serial.println("I2C initialization failed!");
+        #endif
         while(1);
     }
+    #ifdef SERIAL_DEBUG
     Serial.println("ESP32 I2C Master initialized");
+    #endif
 }
 
 void setup() {
+    #ifdef SERIAL_DEBUG
     Serial.begin(9600);
     Serial.setDebugOutput(true);
-    Serial.println();
+    Serial.println("\nESP32 Master Started");
+    #endif
 
     EEPROM_Config_Begin();
     WIFI_Config();
@@ -509,12 +551,18 @@ void loop() {
   if (running == true) {
       if (WiFi.status() == WL_CONNECTED) {
         if (captureAndUploadImage()) {
+          #ifdef SERIAL_DEBUG
           Serial.println("Image captured and uploaded successfully");
+          #endif
         } else {
+          #ifdef SERIAL_DEBUG
           Serial.println("Failed to capture or upload image");
+          #endif
         }
       } else {
+        #ifdef SERIAL_DEBUG
         Serial.println("WiFi not connected");
+        #endif
         // Attempt to reconnect
         WiFi.reconnect();
     }       
@@ -533,7 +581,8 @@ void loop() {
       String response = http.getString();
       response.trim(); // Remove leading and trailing whitespace
 
-      // Debug raw response
+      // SERIAL_DEBUG raw response
+      #ifdef SERIAL_DEBUG
       Serial.println("Raw Response with Characters:");
       for (int i = 0; i < response.length(); i++) {
           Serial.print("Character ");
@@ -544,6 +593,7 @@ void loop() {
           Serial.print((int)response[i]); // Print ASCII value
           Serial.println(")");
       }
+      #endif
 
       // Clean the response string
       response.replace("[", "");
@@ -551,21 +601,31 @@ void loop() {
       response.replace("\"", ""); // Remove quotation marks
       response.trim();
 
+      #ifdef SERIAL_DEBUG
       Serial.println("Cleaned Response: [" + response + "]");
+      #endif
 
       // Convert to an integer
       int result = response.toInt();
+      #ifdef SERIAL_DEBUG
       Serial.println("Converted Result: " + String(result));
+      #endif
       http.end();
 
       if(result == 1) {
+          #ifdef SERIAL_DEBUG
           Serial.println("Move to main loop");
+          #endif
           running = true;
       } else if(result == 2) {
+          #ifdef SERIAL_DEBUG
           Serial.println("Move to Deep sleep");
+          #endif
           delay(60 * 1000 * 5);
       } else {
+          #ifdef SERIAL_DEBUG
           Serial.println("Move to try again");
+          #endif
           delay(5 * 1000);
       } 
     }
