@@ -34,11 +34,14 @@
 
 // ESP32 Access Point Settings
 const char* ap_ssid = "ESP32-Config-AP";
-const char* ap_password = "";  // No password for open access point
+// No password for open access point
+const char* ap_password = "";  
 
 WebServer server(80);
+HTTPClient http;
 
-bool isConnected = false; // Flag to indicate Wi-Fi connection status
+// Flag to indicate Wi-Fi connection status
+bool isConnected = false; 
 
 // defalt or from user
 String ssid = "";
@@ -49,6 +52,11 @@ int uid = 1;
 String client_ssid;
 String client_password;
 int client_uid;
+
+// whole rover status
+bool running = false;
+
+String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -80,8 +88,8 @@ bool captureAndUploadImage() {
     serializeJson(doc, jsonPayload);
 
     // Make POST request
-    HTTPClient http;
-    http.begin("https://axum-jwt-static-page-template-4gs7.shuttle.app/test/rover"); 
+    String roverURL = baseURL + "/rover";
+    http.begin(roverURL);
     http.addHeader("Content-Type", "application/json");
 
     int httpResponseCode = http.POST(jsonPayload);
@@ -99,6 +107,16 @@ bool captureAndUploadImage() {
             Serial.println(error.c_str());
             http.end();
             return false;
+        }
+
+        // Check rover status
+        if (responseDoc.containsKey("roverState")) {
+            int result = responseDoc["roverState"].as<int>();
+            if(result != 1){
+              running = false;
+              http.end();
+              return false;
+            }
         }
 
         // Check if imageResult exists and is an array
@@ -488,18 +506,68 @@ void setup() {
 }
 
 void loop() {
-            if (WiFi.status() == WL_CONNECTED) {
-                if (captureAndUploadImage()) {
-                    Serial.println("Image captured and uploaded successfully");
-                } else {
-                    Serial.println("Failed to capture or upload image");
-                }
-            } else {
-                Serial.println("WiFi not connected");
-                // Attempt to reconnect
-                WiFi.reconnect();
-            }
-            
-            // Add a delay to prevent multiple captures
-            delay(2000);
+  if (running == true) {
+      if (WiFi.status() == WL_CONNECTED) {
+        if (captureAndUploadImage()) {
+          Serial.println("Image captured and uploaded successfully");
+        } else {
+          Serial.println("Failed to capture or upload image");
+        }
+      } else {
+        Serial.println("WiFi not connected");
+        // Attempt to reconnect
+        WiFi.reconnect();
+    }       
+    // Add a delay to prevent multiple captures
+    delay(2000);
+
+  }else{
+
+    String fullURL = baseURL + "/api/user/" + String(uid);
+    http.begin(fullURL);
+    http.addHeader("Content-Type", "application/json");
+
+    int httpResponseCode = http.GET();
+
+    if (httpResponseCode == 200){
+      String response = http.getString();
+      response.trim(); // Remove leading and trailing whitespace
+
+      // Debug raw response
+      Serial.println("Raw Response with Characters:");
+      for (int i = 0; i < response.length(); i++) {
+          Serial.print("Character ");
+          Serial.print(i);
+          Serial.print(": ");
+          Serial.print(response[i]);
+          Serial.print(" (ASCII: ");
+          Serial.print((int)response[i]); // Print ASCII value
+          Serial.println(")");
+      }
+
+      // Clean the response string
+      response.replace("[", "");
+      response.replace("]", "");
+      response.replace("\"", ""); // Remove quotation marks
+      response.trim();
+
+      Serial.println("Cleaned Response: [" + response + "]");
+
+      // Convert to an integer
+      int result = response.toInt();
+      Serial.println("Converted Result: " + String(result));
+      http.end();
+
+      if(result == 1) {
+          Serial.println("Move to main loop");
+          running = true;
+      } else if(result == 2) {
+          Serial.println("Move to Deep sleep");
+          delay(60 * 1000 * 5);
+      } else {
+          Serial.println("Move to try again");
+          delay(5 * 1000);
+      } 
+    }
+  }
 }
