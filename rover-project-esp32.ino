@@ -66,7 +66,8 @@ int client_uid;
 // whole rover status
 bool running = false;
 
-String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+// String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+String baseURL = "http://192.168.1.22:8000";
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -89,7 +90,7 @@ bool captureAndUploadImage() {
     StaticJsonDocument<1024> doc;
 
     doc["roverId"] = uid;
-    doc["randomId"] = 1234;
+    doc["randomId"] = 0;
     doc["batteryStatus"] = 12.3;
     doc["temp"] = 12.3;
     doc["humidity"] = 12.3;
@@ -138,7 +139,35 @@ bool captureAndUploadImage() {
 
         // Check if imageResult exists and is an array
         if (responseDoc.containsKey("imageResult") && responseDoc["imageResult"].is<JsonArray>()) {
-            sendResponseToArduino(responseDoc["imageResult"].as<JsonArray>());
+            JsonArray imageArray = responseDoc["imageResult"].as<JsonArray>();
+            
+            // Check if the array is not empty
+            if (!imageArray.isNull() && imageArray.size() > 0) {
+                sendResponseToArduino(imageArray);
+            } else {
+                // Handle the empty array case
+                #ifdef SERIAL_DEBUG
+                  Serial.println("imageResult array is empty.");
+                #endif
+
+                Wire.beginTransmission(I2C_SLAVE_ADDR);
+                Wire.write((const uint8_t*)"mn", 2); // Send "reset" as a byte array
+                // End the transmission and check for errors
+                byte error = Wire.endTransmission();
+
+                if (error != 0) {
+                  #ifdef SERIAL_DEBUG
+                    Serial.print("Error sending command. Error code: ");
+                    Serial.println(error);
+                  #endif
+                }
+                // You can also send a default response or take other actions here
+            }
+        } else {
+            // Handle the case where imageResult is missing or not an array
+            #ifdef SERIAL_DEBUG
+              Serial.println("imageResult is missing or not a valid array.");
+            #endif
         }
 
         http.end();
@@ -450,6 +479,9 @@ void EEPROM_Config_End(){
     EEPROM.commit();
   }
 
+    #ifdef SERIAL_DEBUG
+    Serial.println("EEPROM setup is done");
+    #endif
 }
 
 void WIFI_Config() {
@@ -577,7 +609,10 @@ void loop() {
     delay(2000);
 
   }else{
-
+    delay(5 * 1000);
+    #ifdef SERIAL_DEBUG
+      Serial.println("Get rover status");
+    #endif
     String fullURL = baseURL + "/api/user/" + String(uid);
     http.begin(fullURL);
     http.addHeader("Content-Type", "application/json");

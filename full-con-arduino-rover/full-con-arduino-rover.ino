@@ -26,6 +26,7 @@
 
 // Custom Command
 #define RESET_COMMAND "rs" // for "reset"
+#define MOVENEXT_COMMAND "mn" // for "move_next"
 
 // Set to 1 to enable serial debugging, 0 to disable
 #define SERIAL_DEBUG 1
@@ -67,6 +68,7 @@ volatile bool receivingLength = true;
 volatile bool newData = false;
 volatile int roverCurrentState = 0;
 volatile bool resetReceived = false;
+volatile bool moveNextReceived = false;
 
 // Fixed-size array to store coordinates
 Coordinates coordinatesArray[MAX_COORDINATES];
@@ -80,7 +82,6 @@ void setup()
   Wire.begin(I2C_SLAVE_ADDR);
   Wire.onReceive(receiveEvent);
   Wire.onRequest(requestEvent);
-
 
   // Initialize serial communication for debugging
   #if SERIAL_DEBUG
@@ -110,6 +111,9 @@ void setup()
 }
 
 void loop() {
+  #if SERIAL_DEBUG
+  Serial.println(roverCurrentState);
+  #endif
   roverCurrentState = 0;
 
   if (resetReceived) {
@@ -117,7 +121,6 @@ void loop() {
     Serial.println("Reset command received!");
     #endif
     roverCurrentState = 2;
-    resetReceived = false;
     
     currentIndex = 0;
     receivingLength = true;
@@ -125,6 +128,25 @@ void loop() {
     memset(jsonBuffer, 0, JSON_CAPACITY);
     
     delay(1000);
+    resetRover();
+    resetReceived = false;
+    roverCurrentState = 0;
+  }
+
+  if (moveNextReceived) {
+    #if SERIAL_DEBUG
+    Serial.println("Move_next command received!");
+    #endif
+    roverCurrentState = 3;
+    moveNextReceived = false;
+    
+    currentIndex = 0;
+    receivingLength = true;
+    newData = false;
+    memset(jsonBuffer, 0, JSON_CAPACITY);
+    
+    delay(1000);
+    moveNextRover();
     roverCurrentState = 0;
   }
 
@@ -198,6 +220,11 @@ void receiveEvent(int numBytes)
     
     if (strcmp(command, RESET_COMMAND) == 0) {
       resetReceived = true;
+      return;
+    }
+
+    if (strcmp(command, MOVENEXT_COMMAND) == 0) {
+      moveNextReceived = true;
       return;
     }
   }
@@ -359,4 +386,18 @@ void roverArm(int mainArmTargetPoint){
     servo1.write(pos);
     delay(mainDelay);
   }
+}
+
+void resetRover(){
+  #if SERIAL_DEBUG
+    Serial.println("Reset the rover");
+  #endif  
+  delay(10 * 1000);
+}
+
+void moveNextRover(){
+  #if SERIAL_DEBUG
+    Serial.println("Move rover next");
+  #endif
+  delay(10 * 1000);
 }
