@@ -24,12 +24,17 @@
 #define BUTTON_PIN 8
 #define MAX_COORDINATES 10  // Maximum number of coordinates to store
 
-#define SERIAL_DEBUG 1  // Set to 1 to enable serial debugging, 0 to disable
+// Custom Command
+#define RESET_COMMAND "rs" // for "reset"
+
+// Set to 1 to enable serial debugging, 0 to disable
+#define SERIAL_DEBUG 1
 
 Servo servo1;
 Servo servo2;
 
-int stepIndex = 0; // Current step in the sequence
+// Current step in the sequence
+int stepIndex = 0; 
 const int stepSequence[8][4] = {
     {1, 0, 0, 0}, // Step 1
     {1, 1, 0, 0}, // Step 2
@@ -60,7 +65,8 @@ volatile size_t expectedLength = 0;
 volatile size_t currentIndex = 0;
 volatile bool receivingLength = true;
 volatile bool newData = false;
-volatile byte buttonState = 0;
+volatile int roverCurrentState = 0;
+volatile bool resetReceived = false;
 
 // Fixed-size array to store coordinates
 Coordinates coordinatesArray[MAX_COORDINATES];
@@ -104,14 +110,28 @@ void setup()
 }
 
 void loop() {
-  // Read button state (invert because of pullup)
-  buttonState = !digitalRead(BUTTON_PIN);
+  roverCurrentState = 0;
 
-  // Reset coordinates count
-  coordinatesCount = 0;
+  if (resetReceived) {
+    #if SERIAL_DEBUG
+    Serial.println("Reset command received!");
+    #endif
+    roverCurrentState = 2;
+    resetReceived = false;
+    
+    currentIndex = 0;
+    receivingLength = true;
+    newData = false;
+    memset(jsonBuffer, 0, JSON_CAPACITY);
+    
+    delay(1000);
+    roverCurrentState = 0;
+  }
 
   if (newData) {
-    // Try to parse JSON
+    coordinatesCount = 0;
+    roverCurrentState = 0;
+
     DeserializationError error = deserializeJson(doc, jsonBuffer);
 
     if (!error) {
@@ -119,14 +139,11 @@ void loop() {
       Serial.println("Detected Points:");
       #endif
 
-      // Check if "points" key exists and is an array
       if (doc.containsKey("points") && doc["points"].is<JsonArray>()) {
         JsonArray points = doc["points"].as<JsonArray>();
 
-        // Iterate through points
         int pointCount = 0;
         for (JsonVariant pointVar : points) {
-          // Stop if we've reached max coordinates
           if (coordinatesCount >= MAX_COORDINATES) break;
 
           float x = pointVar["x"].as<float>();
@@ -141,13 +158,11 @@ void loop() {
           Serial.println(y);
           #endif
 
-          // Store coordinates
           coordinatesArray[coordinatesCount] = Coordinates(x, y);
           coordinatesCount++;
           pointCount++;
         }
         
-        // Call rover operation function
         startRoverOperation();
 
         #if SERIAL_DEBUG
@@ -161,7 +176,6 @@ void loop() {
       #endif
     }
 
-    // Reset for next reception
     currentIndex = 0;
     receivingLength = true;
     newData = false;
@@ -173,7 +187,22 @@ void loop() {
 
 void receiveEvent(int numBytes)
 {
-    while (Wire.available())
+  // Check if this might be a reset command
+  if (numBytes == 2) {  // Length of "rs" to indicates "reset"
+    char command[3] = {0};  // Extra byte for null terminator
+    int i = 0;
+    while (Wire.available() && i < 2) {
+      command[i++] = Wire.read();
+    }
+    command[2] = '\0';
+    
+    if (strcmp(command, RESET_COMMAND) == 0) {
+      resetReceived = true;
+      return;
+    }
+  }
+
+  while (Wire.available())
     {
         if (receivingLength)
         {
@@ -212,7 +241,7 @@ void receiveEvent(int numBytes)
 void requestEvent()
 {
     // Send the button state when master requests it
-    Wire.write(buttonState);
+    Wire.write(roverCurrentState);
 }
 
 void startRoverOperation() {
@@ -241,6 +270,10 @@ void startRoverOperation() {
       Serial.println("move_Rover_Forward");
     #endif
     moveRoverForward();
+
+    delay(50);
+    // allowing to performe next operation
+    roverCurrentState = 1;
 }
 
 void setStepperPins(int step[4]) {

@@ -1,3 +1,10 @@
+/*
+ESP32 (Master)     Arduino (Slave)
+SDA (PIN 15) ----- SDA (A4/SDA)
+SCL (PIN 14) ----- SCL (A5/SCL)
+GND -------------- GND
+*/
+
 // Comment for test to production version
 #define SERIAL_DEBUG
 
@@ -612,7 +619,12 @@ void loop() {
       #endif
       http.end();
 
-      if(result == 1) {
+      if(result == 0) {
+          #ifdef SERIAL_DEBUG
+          Serial.println("Rover in pause state");
+          #endif
+          delay(5 * 1000);
+      } else if(result == 1) {
           #ifdef SERIAL_DEBUG
           Serial.println("Move to main loop");
           #endif
@@ -621,10 +633,30 @@ void loop() {
           #ifdef SERIAL_DEBUG
           Serial.println("Move to Deep sleep");
           #endif
-          delay(60 * 1000 * 5);
-      } else {
+          delay(60 * 5 * 1000);
+      } else if(result == 3) {
           #ifdef SERIAL_DEBUG
-          Serial.println("Move to try again");
+          Serial.println("Reset the rover for maintenance");
+          #endif
+          // Start communication with the I2C slave device
+          Wire.beginTransmission(I2C_SLAVE_ADDR);
+          Wire.write((const uint8_t*)"rs", 2); // Send "reset" as a byte array
+          // End the transmission and check for errors
+          byte error = Wire.endTransmission();
+          if (error != 0) {
+            #ifdef SERIAL_DEBUG
+            Serial.print("Error sending command. Error code: ");
+            Serial.println(error);
+            #endif
+          } else {
+            #ifdef SERIAL_DEBUG
+            Serial.println("Command sent successfully.");
+            #endif
+          }
+          delay(5);// Add a small delay before continuing
+      }else {
+          #ifdef SERIAL_DEBUG
+          Serial.println("Undefine state");
           #endif
           delay(5 * 1000);
       } 
