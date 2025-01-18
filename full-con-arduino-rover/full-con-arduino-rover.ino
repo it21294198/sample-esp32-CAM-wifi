@@ -114,7 +114,7 @@ void loop() {
   #if SERIAL_DEBUG
   Serial.println(roverCurrentState);
   #endif
-  roverCurrentState = 0;
+  roverCurrentState = 1;
 
   if (resetReceived) {
     #if SERIAL_DEBUG
@@ -130,7 +130,7 @@ void loop() {
     delay(1000);
     resetRover();
     resetReceived = false;
-    roverCurrentState = 0;
+    roverCurrentState = 1;
   }
 
   if (moveNextReceived) {
@@ -147,7 +147,7 @@ void loop() {
     
     delay(1000);
     moveNextRover();
-    roverCurrentState = 0;
+    roverCurrentState = 1;
   }
 
   if (newData) {
@@ -202,6 +202,7 @@ void loop() {
     receivingLength = true;
     newData = false;
     memset(jsonBuffer, 0, sizeof(jsonBuffer));
+    roverCurrentState = 1;
   }
 
   delay(50);

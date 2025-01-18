@@ -66,6 +66,9 @@ int client_uid;
 // whole rover status
 bool running = false;
 
+// I2C connected board status
+int roverCurrentState = 0;
+
 // String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
 String baseURL = "http://192.168.1.22:8000";
 
@@ -587,8 +590,14 @@ void setup() {
 }
 
 void loop() {
+  Wire.requestFrom(I2C_SLAVE_ADDR, 1);
+  roverCurrentState = Wire.read();
+  #ifdef SERIAL_DEBUG
+    Serial.println(roverCurrentState);
+  #endif
+  // Normal rover operation state
   if (running == true) {
-      if (WiFi.status() == WL_CONNECTED) {
+      if (WiFi.status() == WL_CONNECTED && roverCurrentState == 1) {
         if (captureAndUploadImage()) {
           #ifdef SERIAL_DEBUG
           Serial.println("Image captured and uploaded successfully");
