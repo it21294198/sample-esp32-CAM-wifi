@@ -597,14 +597,20 @@ void loop() {
   #endif
   // Normal rover operation state
   if (running == true) {
-      if (WiFi.status() == WL_CONNECTED && roverCurrentState == 1) {
-        if (captureAndUploadImage()) {
+      if (WiFi.status() == WL_CONNECTED) {
+        if(roverCurrentState == 1){
+          if (captureAndUploadImage()) {
+            #ifdef SERIAL_DEBUG
+            Serial.println("Image captured and uploaded successfully");
+            #endif
+          } else {
+            #ifdef SERIAL_DEBUG
+            Serial.println("Failed to capture or upload image");
+            #endif
+          }
+        }else{
           #ifdef SERIAL_DEBUG
-          Serial.println("Image captured and uploaded successfully");
-          #endif
-        } else {
-          #ifdef SERIAL_DEBUG
-          Serial.println("Failed to capture or upload image");
+            Serial.println("roverCurrentState is not 1");
           #endif
         }
       } else {
