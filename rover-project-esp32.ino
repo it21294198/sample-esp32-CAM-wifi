@@ -69,8 +69,8 @@ bool running = false;
 // I2C connected board status
 int roverCurrentState = 0;
 
-// String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
-String baseURL = "http://192.168.1.22:8000";
+String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+// String baseURL = "http://192.168.1.22:8000";
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -104,8 +104,8 @@ bool captureAndUploadImage() {
     serializeJson(doc, jsonPayload);
 
     // Make POST request
-    String roverURL = baseURL + "/rover";
-    // String roverURL = baseURL + "/test/rover";
+    // String roverURL = baseURL + "/rover";
+    String roverURL = baseURL + "/test/rover";
     http.begin(roverURL);
     http.addHeader("Content-Type", "application/json");
 
@@ -229,8 +229,10 @@ void sendResponseToArduino(JsonArray imageResult) {
     int16_t* yValues = new int16_t[count];
 
     // factorer
-    int xFactor = 10000;
-    int yFactor = 100;
+    // int xFactor = 10000;
+    int xFactor = 100;
+    // int yFactor = 100;
+    int yFactor = 10;
 
     // Extract x and y values from the JSON array
     size_t index = 0;

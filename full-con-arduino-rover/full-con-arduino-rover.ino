@@ -265,24 +265,27 @@ void stepMotor(bool direction) {
 }
 
 void moveRoverForward(){
-  while(ROVER_WHEEL_SENSOR == HIGH){
-      digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  }
-  digitalWrite(ROVER_WHEEL_PIN,LOW);
+  // while(ROVER_WHEEL_SENSOR == HIGH){
+  //     digitalWrite(ROVER_WHEEL_PIN,HIGH);
+  // }
+  // digitalWrite(ROVER_WHEEL_PIN,LOW);
+  // digitalWrite(ROVER_WHEEL_PIN,HIGH);
+  // delay(200); // move wheel magnet away from sensor
+  // digitalWrite(ROVER_WHEEL_PIN,LOW);
   digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  delay(200); // move wheel magnet away from sensor
+  delay(3000); // move wheel for 3 seconds
   digitalWrite(ROVER_WHEEL_PIN,LOW);
 }
 
 void moveToHorizontalPosition() {
-    for (size_t i = 0; i < coordinatesCount; i++) {
-      int horizontalTarget = int(coordinatesArray[i].x);
+    for (size_t i = 0; i < count-1 ; i++) {
+      int horizontalTarget = int(xValues[i]);
         while (initialHorizontalPoint < horizontalTarget ) {
             stepMotor(false);
             initialHorizontalPoint++;
             delay(1); // Adding a small delay for smooth motor movement
         }
-        roverArm(int(coordinatesArray[i].y)); // Perfomr servo arm action
+        roverArm(int(yValues[i])); // Perfomr servo arm action
         delay(2000);
     }
 }
@@ -344,5 +347,9 @@ void moveNextRover(){
   #if SERIAL_DEBUG
     Serial.println("Move rover next");
   #endif
-  delay(10 * 1000);
+
+  digitalWrite(ROVER_WHEEL_PIN,HIGH);
+  delay(3000); // move wheel for 3 seconds
+  digitalWrite(ROVER_WHEEL_PIN,LOW);
+  delay(2 * 1000);
 }
