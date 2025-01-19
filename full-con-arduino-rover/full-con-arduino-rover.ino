@@ -338,9 +338,30 @@ void roverArm(int mainArmTargetPoint){
 
 void resetRover(){
   #if SERIAL_DEBUG
-    Serial.println("Reset the rover");
-  #endif  
-  delay(10 * 1000);
+    Serial.println("Reset the rover arm");
+  #endif
+
+  int pos1 = 0; 
+  for (pos1 = 0; pos1 <= 180; pos1 += 1) { // goes from 0 degrees to 180 degrees
+    servo1.write(pos1);
+    delay(15);
+  }
+  for (pos1 = 180; pos1 >= 0; pos1 -= 1) { // goes from 180 degrees to 0 degrees
+    servo1.write(pos1);
+    delay(15);
+  }
+
+  int pos2 = 0; 
+  for (pos2 = 0; pos2 <= 180; pos2 += 1) { // goes from 0 degrees to 180 degrees
+    servo1.write(pos2);
+    delay(15);
+  }
+  for (pos2 = 180; pos2 >= 0; pos2 -= 1) { // goes from 180 degrees to 0 degrees
+    servo1.write(pos2);
+    delay(15);
+  }
+  
+  delay(2 * 1000);
 }
 
 void moveNextRover(){
