@@ -217,29 +217,35 @@ void sendCoordinatesToArduino(const int16_t* xValues, const int16_t* yValues, si
 }
 
 void sendResponseToArduino(JsonArray imageResult) {
-      // Clear previous document
-      StaticJsonDocument<JSON_CAPACITY> responseDoc;
-      
-      // Create nested array for points
-      JsonArray array = responseDoc.createNestedArray("points");
-      
-      // Correctly iterate through the image result array
-      for (JsonVariant point : imageResult) {
-          JsonObject newPoint = array.createNestedObject();
-          newPoint["x"] = point["x"].as<float>();
-          newPoint["y"] = point["y"].as<float>();
-      }
-      
-      // Example coordinate data
-      const int16_t xValues[] = {100, 200, 300};
-      const int16_t yValues[] = {400, 500, 600};
-      const size_t count = 3;
-      
-      sendCoordinatesToArduino(xValues, yValues, count);
+    #ifdef SERIAL_DEBUG
+    Serial.println("Processing imageResult array");
+    #endif
 
-      #ifdef SERIAL_DEBUG
-        Serial.println("Response sent successfully");
-      #endif
+    // Get the count of points from the JSON array
+    size_t count = imageResult.size();
+
+    // Allocate arrays dynamically based on the count
+    int16_t* xValues = new int16_t[count];
+    int16_t* yValues = new int16_t[count];
+
+    // Extract x and y values from the JSON array
+    size_t index = 0;
+    for (JsonVariant point : imageResult) {
+        xValues[index] = static_cast<int16_t>(point["x"].as<float>());
+        yValues[index] = static_cast<int16_t>(point["y"].as<float>());
+        index++;
+    }
+
+    // Send the coordinates to Arduino
+    sendCoordinatesToArduino(xValues, yValues, count);
+
+    // Clean up dynamically allocated memory
+    delete[] xValues;
+    delete[] yValues;
+
+    #ifdef SERIAL_DEBUG
+    Serial.println("Response sent successfully");
+    #endif
 }
 
 void handleRoot() {
