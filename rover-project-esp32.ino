@@ -69,8 +69,8 @@ bool running = false;
 // I2C connected board status
 int roverCurrentState = 0;
 
-// String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
-String baseURL = "http://192.168.1.22:8000";
+String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+// String baseURL = "http://192.168.1.22:8000";
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -104,7 +104,8 @@ bool captureAndUploadImage() {
     serializeJson(doc, jsonPayload);
 
     // Make POST request
-    String roverURL = baseURL + "/rover";
+    // String roverURL = baseURL + "/rover";
+    String roverURL = baseURL + "/test/rover";
     http.begin(roverURL);
     http.addHeader("Content-Type", "application/json");
 
@@ -186,56 +187,59 @@ bool captureAndUploadImage() {
     }
 }
 
-void sendResponseToArduino(JsonArray imageResult) {
-    // Clear previous document
-    StaticJsonDocument<JSON_CAPACITY> responseDoc;
-    
-    // Create nested array for points
-    JsonArray array = responseDoc.createNestedArray("points");
-    
-    // Correctly iterate through the image result array
-    for (JsonVariant point : imageResult) {
-        JsonObject newPoint = array.createNestedObject();
-        newPoint["x"] = point["x"].as<float>();
-        newPoint["y"] = point["y"].as<float>();
-    }
-    
-    // Serialize JSON to buffer
-    char jsonBuffer[JSON_CAPACITY];
-    size_t len = serializeJson(responseDoc, jsonBuffer);
-    
-    // Send length first
+// Function to send coordinates
+void sendCoordinatesToArduino(const int16_t* xValues, const int16_t* yValues, size_t count) {
+    // Start I2C transmission
     Wire.beginTransmission(I2C_SLAVE_ADDR);
-    Wire.write((byte)(len & 0xFF));  // Lower byte of length
-    Wire.write((byte)(len >> 8));    // Upper byte of length
-    byte error = Wire.endTransmission();
-    
-    if (error == 0) {
-        // Send JSON data in chunks
-        for (size_t i = 0; i < len; i++) {
-            Wire.beginTransmission(I2C_SLAVE_ADDR);
-            Wire.write(jsonBuffer[i]);
-            error = Wire.endTransmission();
-            
-            if (error != 0) {
-                #ifdef SERIAL_DEBUG
-                Serial.print("Error sending chunk. Error code: ");
-                Serial.println(error);
-                #endif
-                break;
-            }
-            delay(5);  // Small delay between chunks
-        }
 
-        #ifdef SERIAL_DEBUG
-        Serial.println("Response sent successfully");
-        #endif
-    } else {
-        #ifdef SERIAL_DEBUG
-        Serial.print("Error sending length. Error code: ");
-        Serial.println(error);
-        #endif
+    // Send the count of coordinate pairs as a 16-bit integer
+    Wire.write((byte)(count & 0xFF));   // Lower byte of count
+    Wire.write((byte)(count >> 8));     // Upper byte of count
+
+    // Send the coordinates as 16-bit integers
+    for (size_t i = 0; i < count; i++) {
+        Wire.write((byte)(xValues[i] & 0xFF));  // Lower byte of X
+        Wire.write((byte)(xValues[i] >> 8));    // Upper byte of X
+        Wire.write((byte)(yValues[i] & 0xFF));  // Lower byte of Y
+        Wire.write((byte)(yValues[i] >> 8));    // Upper byte of Y
     }
+
+    // End the transmission and check for errors
+    byte error = Wire.endTransmission();
+    #ifdef SERIAL_DEBUG
+      if (error == 0) {
+          Serial.println("Coordinates sent successfully.");
+      } else {
+          Serial.print("Error sending coordinates. Error code: ");
+          Serial.println(error);
+      }
+    #endif
+}
+
+void sendResponseToArduino(JsonArray imageResult) {
+      // Clear previous document
+      StaticJsonDocument<JSON_CAPACITY> responseDoc;
+      
+      // Create nested array for points
+      JsonArray array = responseDoc.createNestedArray("points");
+      
+      // Correctly iterate through the image result array
+      for (JsonVariant point : imageResult) {
+          JsonObject newPoint = array.createNestedObject();
+          newPoint["x"] = point["x"].as<float>();
+          newPoint["y"] = point["y"].as<float>();
+      }
+      
+      // Example coordinate data
+      const int16_t xValues[] = {100, 200, 300};
+      const int16_t yValues[] = {400, 500, 600};
+      const size_t count = 3;
+      
+      sendCoordinatesToArduino(xValues, yValues, count);
+
+      #ifdef SERIAL_DEBUG
+        Serial.println("Response sent successfully");
+      #endif
 }
 
 void handleRoot() {

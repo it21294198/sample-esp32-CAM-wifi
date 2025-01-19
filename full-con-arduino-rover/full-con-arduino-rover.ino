@@ -76,6 +76,13 @@ volatile size_t coordinatesCount = 0;
 
 int initialHorizontalPoint = 0;
 
+// Define the buffer size for the received data
+#define BUFFER_SIZE 32
+// Variables to hold the received data
+int16_t xValues[BUFFER_SIZE];
+int16_t yValues[BUFFER_SIZE];
+size_t count = 0;
+
 void setup()
 {
   // Initialize I2C communication
@@ -151,57 +158,9 @@ void loop() {
   }
 
   if (newData) {
-    coordinatesCount = 0;
     roverCurrentState = 0;
-
-    DeserializationError error = deserializeJson(doc, jsonBuffer);
-
-    if (!error) {
-      #if SERIAL_DEBUG
-      Serial.println("Detected Points:");
-      #endif
-
-      if (doc.containsKey("points") && doc["points"].is<JsonArray>()) {
-        JsonArray points = doc["points"].as<JsonArray>();
-
-        int pointCount = 0;
-        for (JsonVariant pointVar : points) {
-          if (coordinatesCount >= MAX_COORDINATES) break;
-
-          float x = pointVar["x"].as<float>();
-          float y = pointVar["y"].as<float>();
-
-          #if SERIAL_DEBUG
-          Serial.print("Point ");
-          Serial.print(pointCount + 1);
-          Serial.print(": x = ");
-          Serial.print(x);
-          Serial.print(", y = ");
-          Serial.println(y);
-          #endif
-
-          coordinatesArray[coordinatesCount] = Coordinates(x, y);
-          coordinatesCount++;
-          pointCount++;
-        }
-        
-        startRoverOperation();
-
-        #if SERIAL_DEBUG
-        Serial.println("Rover Task is done");
-        #endif
-      }
-    } else {
-      #if SERIAL_DEBUG
-      Serial.print("JSON parsing failed: ");
-      Serial.println(error.c_str());
-      #endif
-    }
-
-    currentIndex = 0;
-    receivingLength = true;
+    startRoverOperation();
     newData = false;
-    memset(jsonBuffer, 0, sizeof(jsonBuffer));
     roverCurrentState = 1;
   }
 
@@ -232,37 +191,19 @@ void receiveEvent(int numBytes)
 
   while (Wire.available())
     {
-        if (receivingLength)
-        {
-            // First receive the expected length (2 bytes)
-            byte lowByte = Wire.read();
-            if (Wire.available())
-            {
-                byte highByte = Wire.read();
-                expectedLength = (highByte << 8) | lowByte;
-                receivingLength = false;
-                
-                // Reset if expected length is too large
-                if (expectedLength > JSON_CAPACITY - 1) {
-                    expectedLength = JSON_CAPACITY - 1;
-                }
-            }
-        }
-        else
-        {
-            // Receive JSON data
-            if (currentIndex < expectedLength)
-            {
-                jsonBuffer[currentIndex] = Wire.read();
-                currentIndex++;
+      // Read the count of coordinate pairs (16-bit integer)
+      count = Wire.read() | (Wire.read() << 8);
 
-                if (currentIndex >= expectedLength)
-                {
-                    jsonBuffer[currentIndex] = '\0'; // Null terminate
-                    newData = true;
-                }
-            }
-        }
+      // Read the coordinates
+      for (size_t i = 0; i < count; i++) {
+          if (Wire.available() >= 4) {
+              xValues[i] = Wire.read() | (Wire.read() << 8);
+              yValues[i] = Wire.read() | (Wire.read() << 8);
+          }
+      }
+      if( count > 0 ){
+        newData = true;
+      }
     }
 }
 
@@ -274,16 +215,19 @@ void requestEvent()
 
 void startRoverOperation() {
   // Process the received coordinates
-  for (size_t i = 0; i < coordinatesCount; i++) {
     #if SERIAL_DEBUG
-    Serial.print("Processing Point ");
-    Serial.print(i + 1);
-    Serial.print(": X = ");
-    Serial.print(coordinatesArray[i].x);
-    Serial.print(", Y = ");
-    Serial.println(coordinatesArray[i].y);
+    Serial.print("Received ");
+    Serial.print(count);
+    Serial.println(" coordinate pairs:");
+    for (size_t i = 0; i < count; i++) {
+        Serial.print("Point ");
+        Serial.print(i + 1);
+        Serial.print(": X = ");
+        Serial.print(xValues[i]);
+        Serial.print(", Y = ");
+        Serial.println(yValues[i]);
+    }
     #endif
-  }
     
     // Control logic starts from here
     #if SERIAL_DEBUG
