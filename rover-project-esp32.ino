@@ -69,6 +69,7 @@ bool running = false;
 // I2C connected board status
 int roverCurrentState = 0;
 
+String clientURL = "https://rusiii.com/api/Rover";
 String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
 // String baseURL = "http://192.168.1.22:8000";
 
@@ -591,6 +592,52 @@ void I2c_Config() {
     #endif
 }
 
+void SetBaseURL() {
+    http.begin(clientURL); // Initialize the HTTP request with the client URL
+
+    int httpResponseCode = http.GET(); // Perform the GET request
+    if (httpResponseCode > 0) {
+        String response = http.getString();
+
+        #if defined(SERIAL_DEBUG)
+        Serial.println("HTTP Response code: " + String(httpResponseCode));
+        Serial.println("Response: " + response);
+        #endif
+
+        // Parse the JSON response
+        StaticJsonDocument<512> responseDoc;
+        DeserializationError error = deserializeJson(responseDoc, response);
+
+        if (error) {
+            #if defined(SERIAL_DEBUG)
+            Serial.print("JSON parsing failed: ");
+            Serial.println(error.c_str());
+            #endif
+
+            http.end(); // End the HTTP connection
+            return; // Exit the function
+        }
+
+        // Check if the JSON contains the expected key and update clientURL
+        if (responseDoc.containsKey("url")) {
+            String result = responseDoc["url"].as<String>();
+            if (!result.isEmpty()) {
+                clientURL = result;
+
+                #if defined(SERIAL_DEBUG)
+                Serial.println("Updated clientURL: " + clientURL);
+                #endif
+            }
+        }
+    } else {
+        #if defined(SERIAL_DEBUG)
+        Serial.println("HTTP GET request failed with response code: " + String(httpResponseCode));
+        #endif
+    }
+
+    http.end(); // End the HTTP connection
+}
+
 void setup() {
     #ifdef SERIAL_DEBUG
     Serial.begin(9600);
@@ -603,6 +650,7 @@ void setup() {
     Camara_Config();
     I2c_Config();
     EEPROM_Config_End();
+    SetBaseURL();
 }
 
 void loop() {
