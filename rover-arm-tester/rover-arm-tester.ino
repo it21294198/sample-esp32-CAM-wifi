@@ -35,10 +35,12 @@ const int stepSequence[8][4] = {
     {1, 0, 0, 1}  // Step 8
 };
 
-int16_t xValues[BUFFER_SIZE] = {2000, 4000, 6000};
+int16_t xValues[BUFFER_SIZE] = {2, 4, 6};
 int16_t yValues[BUFFER_SIZE] = {100, 200, 300};
 
 int currentHorizontalPosition = 0;
+long timer = 0;
+bool isReset = false;
 
 void setup()
 {
@@ -70,7 +72,7 @@ void moveNextRover(){
   #endif
 
   digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  delay(3000); // move wheel for 3 seconds
+  delay(2000); // move wheel for 3 seconds
   digitalWrite(ROVER_WHEEL_PIN,LOW);
   delay(2 * 1000);
 }
@@ -85,6 +87,21 @@ void gotoInitialStepperArmPoint()
     currentHorizontalPosition = 0;
 }
 
+void gotoInitialServoArmPoint(){
+  const int subArmInitialPoint = 150;
+  const int mainArmInitialPoint = 50;
+  subArmServo.write(subArmInitialPoint);
+  mainArmServo.write(mainArmInitialPoint);
+}
+
+void moveToHorizontalPositionTimer(){
+  currentHorizontalPosition++;
+  timer = 0;
+  // #if SERIAL_DEBUG
+  //   Serial.println(currentHorizontalPosition);
+  // #endif
+}
+
 void moveToHorizontalPosition()
 {
   #if SERIAL_DEBUG
@@ -93,11 +110,14 @@ void moveToHorizontalPosition()
 
     for (int i = 0; i < BUFFER_SIZE; i++)
     {
-        long horizontalTarget = xValues[i]*100;
-        while (currentHorizontalPosition < horizontalTarget)
+        int horizontalTarget = xValues[i];
+        while (currentHorizontalPosition <= horizontalTarget)
         {
             stepMotor(true);
-            currentHorizontalPosition++;
+            if(timer>=10000){
+              moveToHorizontalPositionTimer();
+            }
+            timer++;
             delay(1);
         }
         #if SERIAL_DEBUG
@@ -124,13 +144,13 @@ void stepMotor(bool direction)
 
 void moveRoverArm(int targetPoint)
 {
-    const int subArmEndPointMax = 50;
+    int subArmEndPointMax = 50;
     const int subArmInitialPoint = 150;
     const int mainArmInitialPoint = 50;
-    const int mainDelay = 20;
-    const int subDelay = 30;
+    const int mainDelay = 30;
+    const int subDelay = 50;
 
-    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,180);
+    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
     #if SERIAL_DEBUG
       Serial.println(mainArmTargetPoint);
     #endif
@@ -146,6 +166,7 @@ void moveRoverArm(int targetPoint)
     {
         if (digitalRead(ENDPOINT_PIN) == HIGH)
         {
+            subArmEndPointMax = subArmInitialPoint;
             break;
         }
         subArmServo.write(pos);
@@ -154,7 +175,7 @@ void moveRoverArm(int targetPoint)
 
     // Activate endpoint motor
     digitalWrite(ENDPOINT_MOTOR, HIGH);
-    delay(3000); // Activate motor for 1 second
+    delay(1000); // Activate motor for 1 second
     digitalWrite(ENDPOINT_MOTOR, LOW);
 
     // Reset sub arm position
@@ -174,31 +195,40 @@ void moveRoverArm(int targetPoint)
 
 void resetRover()
 {
+
+  // if(isReset){
+  //   return 0;
+  // }
+  // isReset = true;
+
 #if SERIAL_DEBUG
     Serial.println("Resetting the rover arm");
 #endif
 
-    for (int pos = 0; pos <= 180; pos++)
+    for (int pos = 50; pos <= 100; pos++)
     {
         mainArmServo.write(pos);
-        delay(15);
-    }
-    for (int pos = 180; pos >= 0; pos--)
-    {
-        mainArmServo.write(pos);
-        delay(15);
+        delay(20);
     }
 
-    for (int pos = 0; pos <= 180; pos++)
+    for (int pos = 50; pos <= 160; pos++)
     {
         subArmServo.write(pos);
-        delay(15);
+        delay(40);
     }
-    for (int pos = 180; pos >= 0; pos--)
+
+    for (int pos = 160; pos >= 50; pos--)
     {
         subArmServo.write(pos);
-        delay(15);
+        delay(40);
     }
+
+    for (int pos =100; pos >= 50; pos--)
+    {
+        mainArmServo.write(pos);
+        delay(20);
+    }
+
 }
 void testLeftRightEndButton(){
   Serial.print("Endpoint status : ");
@@ -213,8 +243,9 @@ void testLeftRightEndButton(){
 void loop()
 {
   // testLeftRightEndButton();
-  // gotoInitialStepperArmPoint();
   // resetRover();
-  // moveToHorizontalPosition();
+  gotoInitialStepperArmPoint();
+  gotoInitialServoArmPoint();
+  moveToHorizontalPosition();
   moveNextRover();
 }
