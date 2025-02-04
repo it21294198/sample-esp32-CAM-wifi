@@ -81,7 +81,7 @@ void gotoInitialStepperArmPoint()
 {
     while (digitalRead(LEFT_ENDPOINT_PIN) == LOW)
     {
-        stepMotor(false); // Move in reverse to the initial point
+        stepMotor(true); // Move in reverse to the initial point --false
         delay(1);
     }
     currentHorizontalPosition = 0;
@@ -113,7 +113,7 @@ void moveToHorizontalPosition()
         int horizontalTarget = xValues[i];
         while (currentHorizontalPosition <= horizontalTarget)
         {
-            stepMotor(true);
+            stepMotor(false); // -- before true
             if(timer>=10000){
               moveToHorizontalPositionTimer();
             }
@@ -196,14 +196,14 @@ void moveRoverArm(int targetPoint)
 void resetRover()
 {
 
-  // if(isReset){
-  //   return 0;
-  // }
-  // isReset = true;
+  if(isReset){
+    return 0;
+  }
+  isReset = true;
 
-#if SERIAL_DEBUG
-    Serial.println("Resetting the rover arm");
-#endif
+  #if SERIAL_DEBUG
+      Serial.println("Resetting the rover arm");
+  #endif
 
     for (int pos = 50; pos <= 100; pos++)
     {
@@ -228,8 +228,8 @@ void resetRover()
         mainArmServo.write(pos);
         delay(20);
     }
-
 }
+
 void testLeftRightEndButton(){
   Serial.print("Endpoint status : ");
   Serial.print(digitalRead(ENDPOINT_PIN));

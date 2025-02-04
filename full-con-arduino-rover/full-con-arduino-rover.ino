@@ -11,7 +11,7 @@
 #define ENDPOINT_MOTOR 7
 
 #define RIGHTEND_POINT_PIN 8
-#define LEFTENDPOINT_PIN 9
+#define LEFT_ENDPOINT_PIN 9
 
 #define SUB_ARM_SERVO 10
 #define MAIN_ARM_SERVO 11
@@ -31,8 +31,8 @@
 // Set to 1 to enable serial debugging, 0 to disable
 #define SERIAL_DEBUG 1
 
-Servo servo1;
-Servo servo2;
+Servo mainArmServo;
+Servo subArmServo;
 
 // Current step in the sequence
 int stepIndex = 0; 
@@ -74,14 +74,16 @@ volatile bool moveNextReceived = false;
 Coordinates coordinatesArray[MAX_COORDINATES];
 volatile size_t coordinatesCount = 0;
 
-int initialHorizontalPoint = 0;
-
 // Define the buffer size for the received data
 #define BUFFER_SIZE 32
 // Variables to hold the received data
 int16_t xValues[BUFFER_SIZE];
 int16_t yValues[BUFFER_SIZE];
 size_t count = 0;
+
+int currentHorizontalPosition = 0;
+long timer = 0;
+bool isReset = false;
 
 void setup()
 {
@@ -96,14 +98,14 @@ void setup()
   Serial.println("Arduino I2C Slave initialized");
   #endif
 
-  servo1.attach(MAIN_ARM_SERVO);
-  servo2.attach(SUB_ARM_SERVO);
+  mainArmServo.attach(MAIN_ARM_SERVO);
+  subArmServo.attach(SUB_ARM_SERVO);
 
   pinMode(ENDPOINT_PIN, INPUT);
   pinMode(ENDPOINT_MOTOR, OUTPUT);
 
   pinMode(RIGHTEND_POINT_PIN, INPUT);
-  pinMode(LEFTENDPOINT_PIN, INPUT);
+  pinMode(LEFT_ENDPOINT_PIN, INPUT);
 
   pinMode(ROVER_WHEEL_PIN,OUTPUT);
   pinMode(ROVER_WHEEL_SENSOR,INPUT);
@@ -158,6 +160,7 @@ void loop() {
   }
 
   if (newData) {
+    isReset = false;
     roverCurrentState = 0;
     startRoverOperation();
     newData = false;
@@ -265,112 +268,152 @@ void stepMotor(bool direction) {
 }
 
 void moveRoverForward(){
-  // while(ROVER_WHEEL_SENSOR == HIGH){
-  //     digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  // }
-  // digitalWrite(ROVER_WHEEL_PIN,LOW);
-  // digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  // delay(200); // move wheel magnet away from sensor
-  // digitalWrite(ROVER_WHEEL_PIN,LOW);
+  #if SERIAL_DEBUG
+    Serial.println("Move rover next");
+  #endif
+  delay(1000);
   digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  delay(3000); // move wheel for 3 seconds
+  delay(2000); // move wheel for 2 seconds
   digitalWrite(ROVER_WHEEL_PIN,LOW);
+  delay(2000);
 }
 
 void moveToHorizontalPosition() {
     for (size_t i = 0; i < count-1 ; i++) {
       int horizontalTarget = int(xValues[i]);
-        while (initialHorizontalPoint < horizontalTarget ) {
-            stepMotor(false);
-            initialHorizontalPoint++;
-            delay(1); // Adding a small delay for smooth motor movement
+        while (currentHorizontalPosition <= horizontalTarget)
+        {
+            stepMotor(false); // -- before true
+            if(timer>=10000){
+              moveToHorizontalPositionTimer();
+            }
+            timer++;
+            delay(1);
         }
-        roverArm(int(yValues[i])); // Perfomr servo arm action
+        #if SERIAL_DEBUG
+            Serial.println(horizontalTarget);
+        #endif
+        moveRoverArm(int(yValues[i])); // Perfomr servo arm action
         delay(2000);
     }
 }
 
 void gotoInitialStepperArmPoint() {
-    while (digitalRead(LEFTENDPOINT_PIN) == LOW) {
+    while (digitalRead(LEFT_ENDPOINT_PIN) == LOW) {
         stepMotor(true); // Move in reverse to the initial point
         delay(1);
     }
-    initialHorizontalPoint = 0;
+    currentHorizontalPosition = 0;
 }
 
-void roverArm(int mainArmTargetPoint){
-  int endPoint = 150;
-  int endPointMax = 50; // usually 0
-  int subArmInitialPoint = 150;
-  int mainArmInitialPoint = 50;
-  int mainDelay = 20;
-  int subDelay = 30;
+void gotoInitialServoArmPoint(){
+  const int subArmInitialPoint = 150;
+  const int mainArmInitialPoint = 50;
+  subArmServo.write(subArmInitialPoint);
+  mainArmServo.write(mainArmInitialPoint);
+}
 
-  for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++) {
-    servo1.write(pos);
-    delay(mainDelay);
-  }
+void moveToHorizontalPositionTimer(){
+  currentHorizontalPosition++;
+  timer = 0;
+  // #if SERIAL_DEBUG
+  //   Serial.println(currentHorizontalPosition);
+  // #endif
+}
 
-  for (int pos = subArmInitialPoint; pos >= endPointMax; pos--) {
-    if (digitalRead(ENDPOINT_PIN) == HIGH) { 
-      endPoint = pos;
-      break;
+void moveRoverArm(int targetPoint)
+{
+    int subArmEndPointMax = 50;
+    const int subArmInitialPoint = 150;
+    const int mainArmInitialPoint = 50;
+    const int mainDelay = 30;
+    const int subDelay = 50;
+
+    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
+    #if SERIAL_DEBUG
+      Serial.println(mainArmTargetPoint);
+    #endif
+    // Move main arm to the target position
+    for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++)
+    {
+        mainArmServo.write(pos);
+        delay(mainDelay);
     }
-    servo2.write(pos);
-    endPoint = endPointMax;
-    delay(subDelay);
-  }
 
-  digitalWrite(ENDPOINT_MOTOR,HIGH);
-  delay(1000); // pollination end is run for 1 second
-  digitalWrite(ENDPOINT_MOTOR,LOW);
+    // Move sub arm down
+    for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
+    {
+        if (digitalRead(ENDPOINT_PIN) == HIGH)
+        {
+            subArmEndPointMax = subArmInitialPoint;
+            break;
+        }
+        subArmServo.write(pos);
+        delay(subDelay);
+    }
 
-  for (int pos = endPoint ; pos <= subArmInitialPoint; pos++) {
-    servo2.write(pos);
-    delay(subDelay);
-  }
+    // Activate endpoint motor
+    digitalWrite(ENDPOINT_MOTOR, HIGH);
+    delay(1000); // Activate motor for 1 second
+    digitalWrite(ENDPOINT_MOTOR, LOW);
 
-  for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--) {
-    servo1.write(pos);
-    delay(mainDelay);
-  }
+    // Reset sub arm position
+    for (int pos = subArmEndPointMax; pos <= subArmInitialPoint; pos++)
+    {
+        subArmServo.write(pos);
+        delay(subDelay);
+    }
+
+    // Reset main arm position
+    for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--)
+    {
+        mainArmServo.write(pos);
+        delay(mainDelay);
+    }
 }
 
 void resetRover(){
+  if(isReset){
+    return 0;
+  }
+  isReset = true;
+
   #if SERIAL_DEBUG
-    Serial.println("Reset the rover arm");
+      Serial.println("Resetting the rover arm");
   #endif
 
-  int pos1 = 0; 
-  for (pos1 = 0; pos1 <= 180; pos1 += 1) { // goes from 0 degrees to 180 degrees
-    servo1.write(pos1);
-    delay(15);
-  }
-  for (pos1 = 180; pos1 >= 0; pos1 -= 1) { // goes from 180 degrees to 0 degrees
-    servo1.write(pos1);
-    delay(15);
-  }
+    for (int pos = 50; pos <= 100; pos++)
+    {
+        mainArmServo.write(pos);
+        delay(20);
+    }
 
-  int pos2 = 0; 
-  for (pos2 = 0; pos2 <= 180; pos2 += 1) { // goes from 0 degrees to 180 degrees
-    servo1.write(pos2);
-    delay(15);
-  }
-  for (pos2 = 180; pos2 >= 0; pos2 -= 1) { // goes from 180 degrees to 0 degrees
-    servo1.write(pos2);
-    delay(15);
-  }
-  
-  delay(2 * 1000);
+    for (int pos = 50; pos <= 160; pos++)
+    {
+        subArmServo.write(pos);
+        delay(40);
+    }
+
+    for (int pos = 160; pos >= 50; pos--)
+    {
+        subArmServo.write(pos);
+        delay(40);
+    }
+
+    for (int pos =100; pos >= 50; pos--)
+    {
+        mainArmServo.write(pos);
+        delay(20);
+    }
 }
 
 void moveNextRover(){
   #if SERIAL_DEBUG
     Serial.println("Move rover next");
   #endif
-
+  delay(1000);
   digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  delay(3000); // move wheel for 3 seconds
+  delay(2000); // move wheel for 2 seconds
   digitalWrite(ROVER_WHEEL_PIN,LOW);
-  delay(2 * 1000);
+  delay(2000);
 }

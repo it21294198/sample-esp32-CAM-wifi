@@ -94,19 +94,19 @@ bool captureAndUploadImage() {
     StaticJsonDocument<1024> doc;
 
     doc["roverId"] = uid;
-    doc["randomId"] = 0;
+    doc["randomId"] = 1;
     doc["batteryStatus"] = 12.3;
     doc["temp"] = 12.3;
     doc["humidity"] = 12.3;
     doc["imageData"] = base64Image;
 
-    Serial.println(base64Image);
+    // Serial.println(base64Image); // --for testing
     String jsonPayload;
     serializeJson(doc, jsonPayload);
 
     // Make POST request
-    // String roverURL = baseURL + "/rover";
-    String roverURL = baseURL + "/test/rover";
+    String roverURL = baseURL + "/rover";
+    // String roverURL = baseURL + "/test/rover";
     http.begin(roverURL);
     http.addHeader("Content-Type", "application/json");
 
@@ -233,7 +233,7 @@ void sendResponseToArduino(JsonArray imageResult) {
     // int xFactor = 10000;
     int xFactor = 100;
     // int yFactor = 100;
-    int yFactor = 10;
+    int yFactor = 1000;
 
     // Extract x and y values from the JSON array
     size_t index = 0;
