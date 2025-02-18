@@ -1,7 +1,8 @@
 #include <Servo.h>
-
+#include "SimpleTable.h"
 // Set to 1 to enable serial debugging, 0 to disable
 #define SERIAL_DEBUG 1
+#define ARM_TEST_MODE 1
 #define BUFFER_SIZE 3
 
 #define STEPPER_PIN1 2
@@ -19,6 +20,8 @@
 #define MAIN_ARM_SERVO_PIN 11
 
 #define ROVER_WHEEL_PIN 12
+
+#define PI 3.1415926535897932384626433832795
 
 Servo mainArmServo;
 Servo subArmServo;
@@ -44,10 +47,10 @@ bool isReset = false;
 
 void setup()
 {
-#if SERIAL_DEBUG
-    Serial.begin(9600);
-    Serial.println("Arduino I2C Slave initialized");
-#endif
+  #if SERIAL_DEBUG
+      Serial.begin(9600);
+      Serial.println("Arduino I2C Slave initialized");
+  #endif
 
     mainArmServo.attach(MAIN_ARM_SERVO_PIN);
     subArmServo.attach(SUB_ARM_SERVO_PIN);
@@ -110,20 +113,21 @@ void moveToHorizontalPosition()
 
     for (int i = 0; i < BUFFER_SIZE; i++)
     {
-        int horizontalTarget = xValues[i];
-        while (currentHorizontalPosition <= horizontalTarget)
-        {
-            stepMotor(false); // -- before true
-            if(timer>=10000){
-              moveToHorizontalPositionTimer();
-            }
-            timer++;
-            delay(1);
-        }
-        #if SERIAL_DEBUG
-            Serial.println(horizontalTarget);
-        #endif
-        moveRoverArm(yValues[i]);
+        // int horizontalTarget = xValues[i];
+        // while (currentHorizontalPosition <= horizontalTarget)
+        // {
+        //     stepMotor(false); // -- before true
+        //     if(timer>=10000){
+        //       moveToHorizontalPositionTimer();
+        //     }
+        //     timer++;
+        //     delay(1);
+        // }
+        // #if SERIAL_DEBUG
+        //     Serial.println(horizontalTarget);
+        // #endif
+        // moveRoverArm(yValues[i]);
+        moveAlgoRoverArm(yValues[i]);
         delay(2000);
     }
 }
@@ -166,7 +170,7 @@ void moveRoverArm(int targetPoint)
     {
         if (digitalRead(ENDPOINT_PIN) == HIGH)
         {
-            subArmEndPointMax = subArmInitialPoint;
+            subArmEndPointMax = pos;
             break;
         }
         subArmServo.write(pos);
@@ -190,6 +194,126 @@ void moveRoverArm(int targetPoint)
     {
         mainArmServo.write(pos);
         delay(mainDelay);
+    }
+}
+
+void moveAlgoRoverArm(int targetPoint)
+{
+    int subArmEndPointMax = 50;
+    const int subArmInitialPoint = 150;
+    const int mainArmInitialPoint = 50;
+    const int mainDelay = 30;
+    const int subDelay = 50;
+    const int mainSubBetweenDelay = 50;
+
+    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
+    #if SERIAL_DEBUG
+      Serial.println(mainArmTargetPoint);
+    #endif
+    // Move main arm to the target position
+    for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++)
+    {
+        #if ARM_TEST_MODE
+          Serial.print("Main arm initial : ");
+          Serial.println(pos);
+          delay(10);
+        #else
+          mainArmServo.write(pos);
+          delay(mainDelay);
+        #endif
+    }
+    int holdVal = 50;
+    // Move sub arm down
+    for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
+    {
+        if (digitalRead(ENDPOINT_PIN) == HIGH)
+        {
+            subArmEndPointMax = pos;
+            break;
+        }
+        float degrees = map(pos, 50, 150, 0, 180);
+        float radians = degrees * PI/180;
+        float mainArmPos = sin(radians);
+        int servoValue = map(mainArmPos * 1000, 0, 1000, 50, 150);
+        #if ARM_TEST_MODE
+          Serial.print("Sub : ");
+          Serial.print(pos);
+          if (holdVal <= servoValue)
+          {
+              for (int movePos = holdVal; movePos <= servoValue; movePos++)
+              {
+                  Serial.print(" MainUP : ");
+                  Serial.print(movePos);
+              }
+          }
+          else
+          {
+              for (int movePos = holdVal; movePos >= servoValue; movePos--)
+              {
+                  Serial.print(" MainDown : ");
+                  Serial.print(movePos);
+              }
+          }
+          holdVal = servoValue;
+          Serial.print(" HoldVal : ");
+          Serial.println(holdVal);
+        #else
+          subArmServo.write(pos);
+          delay(subDelay);
+          if (holdVal <= servoValue)
+          {
+              for (int movePos = holdVal; movePos <= servoValue; movePos++)
+              {
+                  mainArmServo.write(movePos);
+                  delay(mainSubBetweenDelay);
+              }
+          }
+          else
+          {
+              for (int movePos = holdVal; movePos >= servoValue; movePos--)
+              {
+                  mainArmServo.write(movePos);
+                  delay(mainSubBetweenDelay);
+              }
+          }
+          holdVal = servoValue; // Update holdVal for next iteration
+        #endif
+    }
+
+    #if ARM_TEST_MODE
+      Serial.println("Pollination");
+      delay(100);
+    #else
+      // Activate endpoint motor
+      digitalWrite(ENDPOINT_MOTOR, HIGH);
+      delay(1000); // Activate motor for 1 second
+      digitalWrite(ENDPOINT_MOTOR, LOW);
+    #endif
+
+    // // Reset sub arm position
+    for (int pos = subArmEndPointMax; pos <= subArmInitialPoint; pos++)
+    {
+      #if ARM_TEST_MODE
+        Serial.print("Sub arm last : ");
+        Serial.println(pos);
+        delay(10);
+      #else
+        subArmServo.write(pos);
+        delay(subDelay);
+      #endif
+    }
+
+    // // Reset main arm position
+    for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--)
+    {
+      #if ARM_TEST_MODE
+        Serial.print("Main arm last : ");
+        Serial.println(pos);
+        delay(10);
+      #else
+        mainArmServo.write(pos);
+        delay(mainDelay);
+      #endif
     }
 }
 
@@ -244,8 +368,9 @@ void loop()
 {
   // testLeftRightEndButton();
   // resetRover();
-  gotoInitialStepperArmPoint();
-  gotoInitialServoArmPoint();
+  // gotoInitialStepperArmPoint();
+  // gotoInitialServoArmPoint();
   moveToHorizontalPosition();
-  moveNextRover();
+  // moveNextRover();
 }
+

@@ -105,6 +105,7 @@ bool captureAndUploadImage() {
     serializeJson(doc, jsonPayload);
 
     // Make POST request
+    baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
     String roverURL = baseURL + "/rover";
     // String roverURL = baseURL + "/test/rover";
     http.begin(roverURL);
@@ -231,9 +232,9 @@ void sendResponseToArduino(JsonArray imageResult) {
 
     // factorer
     // int xFactor = 10000;
-    int xFactor = 100;
+    int xFactor = 1;
     // int yFactor = 100;
-    int yFactor = 1000;
+    int yFactor = 1;
 
     // Extract x and y values from the JSON array
     size_t index = 0;
@@ -650,7 +651,7 @@ void setup() {
     Camara_Config();
     I2c_Config();
     EEPROM_Config_End();
-    SetBaseURL();
+    // SetBaseURL();
 }
 
 void loop() {
@@ -692,6 +693,7 @@ void loop() {
     #ifdef SERIAL_DEBUG
       Serial.println("Get rover status");
     #endif
+    baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
     String fullURL = baseURL + "/api/user/" + String(uid);
     http.begin(fullURL);
     http.addHeader("Content-Type", "application/json");
