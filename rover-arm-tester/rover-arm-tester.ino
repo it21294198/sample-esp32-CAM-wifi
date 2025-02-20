@@ -85,7 +85,7 @@ void gotoInitialStepperArmPoint()
 {
     while (digitalRead(LEFT_ENDPOINT_PIN) == LOW)
     {
-        stepMotor(true);
+        stepMotor(false);
         delay(1);
     }
     currentHorizontalPosition = 0;
@@ -116,7 +116,7 @@ void moveToHorizontalPosition()
 void moveStepperLine(int horizontalTarget){
         while (currentHorizontalPosition <= horizontalTarget)
         {
-            stepMotor(false);
+            stepMotor(true);
             if(timer>=10000){
               moveToHorizontalPositionTimer();
             }
@@ -217,28 +217,28 @@ float calculateResult(float x, float r, float val) {
 
 void loop()
 {
+  int BUFFER = 3;
+  int16_t xVal[BUFFER] = {200, 400, 600};
+  int16_t yVal[BUFFER] = {50, 75, 100};
+  Serial.println("----------------------------");
+  for (int i = 0; i < BUFFER; i++){
+    float x = xVal[i];
+    float y = yVal[i];
+    float r = 100;
+    float val = calculateInverseSine(y, r);
+    float result = calculateResult(x, r, val);
 
-  // float x = 150;
-  // float y = 50;
-  // float r = 100;
-  // float val = calculateInverseSine(y, r);
-  // float result = calculateResult(x, r, val);
-  // #if ARM_TEST_MODE
-  //   Serial.print(asin(1));
-  //   Serial.print("Angle : ");
-  //   Serial.print(val);
-  //   Serial.print(" Distance : ");
-  //   Serial.println(result);
-  //   delay(5000);
-  // #else
-
-  // #endif
-  
+    Serial.print("Angle : ");
+    Serial.print(val * r);
+    Serial.print(" Distance : ");
+    Serial.println(result);
+    delay(3000);
+  }
   // testLeftRightEndButton();
   // resetRover();
-  gotoInitialServoArmPoint();
-  gotoInitialStepperArmPoint();
-  moveToHorizontalPosition();
+  // gotoInitialServoArmPoint();
+  // gotoInitialStepperArmPoint();
+  // moveToHorizontalPosition();
   // moveNextRover();
 }
 
