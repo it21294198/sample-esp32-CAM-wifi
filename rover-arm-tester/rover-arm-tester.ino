@@ -1,8 +1,9 @@
 #include <Servo.h>
-#include "SimpleTable.h"
+
 // Set to 1 to enable serial debugging, 0 to disable
 #define SERIAL_DEBUG 1
 #define ARM_TEST_MODE 1
+
 #define BUFFER_SIZE 3
 
 #define STEPPER_PIN1 2
@@ -91,9 +92,7 @@ void gotoInitialStepperArmPoint()
 }
 
 void gotoInitialServoArmPoint(){
-  const int subArmInitialPoint = 150;
-  const int mainArmInitialPoint = 50;
-  subArmServo.write(subArmInitialPoint);
+  const int mainArmInitialPoint = 180;
   mainArmServo.write(mainArmInitialPoint);
 }
 
@@ -111,25 +110,42 @@ void moveToHorizontalPosition()
       Serial.println("Usual arm movements");
   #endif
 
-    for (int i = 0; i < BUFFER_SIZE; i++)
-    {
-        // int horizontalTarget = xValues[i];
-        // while (currentHorizontalPosition <= horizontalTarget)
-        // {
-        //     stepMotor(false); // -- before true
-        //     if(timer>=10000){
-        //       moveToHorizontalPositionTimer();
-        //     }
-        //     timer++;
-        //     delay(1);
-        // }
-        // #if SERIAL_DEBUG
-        //     Serial.println(horizontalTarget);
-        // #endif
-        // moveRoverArm(yValues[i]);
-        moveAlgoRoverArm(yValues[i]);
-        delay(2000);
+  for (int i = 0; i < BUFFER_SIZE; i++){
+    moveStepperLine(xValues[i]);
+    moveServoAngle(map(yValues[i],0,400,75,180)); // max 75
+  }
+}
+
+void moveStepperLine(int horizontalTarget){
+        while (currentHorizontalPosition <= horizontalTarget)
+        {
+            stepMotor(false); // -- before true
+            if(timer>=10000){
+              moveToHorizontalPositionTimer();
+            }
+            timer++;
+            delay(1);
+        }
+}
+
+void moveServoAngle(int angle){
+
+    for(int i = 180 ; i >= angle ; i--){
+      mainArmServo.write(i);
+      delay(50);
     }
+
+    performAction();
+
+    for(int i = angle ; i <= 180 ; i++){
+      mainArmServo.write(i);
+      delay(50);
+    }
+
+}
+
+void performAction(){
+  delay(1000);
 }
 
 void setStepperPins(int step[4])
@@ -151,7 +167,7 @@ void moveRoverArm(int targetPoint)
     int subArmEndPointMax = 50;
     const int subArmInitialPoint = 150;
     const int mainArmInitialPoint = 50;
-    const int mainDelay = 30;
+    const int mainDelay = 100;
     const int subDelay = 50;
 
     const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
@@ -199,14 +215,16 @@ void moveRoverArm(int targetPoint)
 
 void moveAlgoRoverArm(int targetPoint)
 {
-    int subArmEndPointMax = 50;
     const int subArmInitialPoint = 150;
     const int mainArmInitialPoint = 50;
     const int mainDelay = 30;
     const int subDelay = 50;
     const int mainSubBetweenDelay = 50;
+    int subArmEndPointMax = 50;
+    int holdVal = 0;
+    int servoValue = 0;
 
-    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
+    int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
     #if SERIAL_DEBUG
       Serial.println(mainArmTargetPoint);
     #endif
@@ -215,14 +233,16 @@ void moveAlgoRoverArm(int targetPoint)
     {
         #if ARM_TEST_MODE
           Serial.print("Main arm initial : ");
+          holdVal = pos;
           Serial.println(pos);
           delay(10);
         #else
+          holdVal = pos;
           mainArmServo.write(pos);
           delay(mainDelay);
         #endif
     }
-    int holdVal = 50;
+
     // Move sub arm down
     for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
     {
@@ -234,7 +254,12 @@ void moveAlgoRoverArm(int targetPoint)
         float degrees = map(pos, 50, 150, 0, 180);
         float radians = degrees * PI/180;
         float mainArmPos = sin(radians);
-        int servoValue = map(mainArmPos * 1000, 0, 1000, 50, 150);
+        servoValue = map(mainArmPos * 1000, 0, 1000, 50, 150);
+        Serial.print(holdVal);
+        Serial.print(" : ");
+        Serial.print(servoValue);
+        Serial.print(" : ");
+
         #if ARM_TEST_MODE
           Serial.print("Sub : ");
           Serial.print(pos);
@@ -244,6 +269,7 @@ void moveAlgoRoverArm(int targetPoint)
               {
                   Serial.print(" MainUP : ");
                   Serial.print(movePos);
+                  mainArmTargetPoint = movePos;
               }
           }
           else
@@ -252,6 +278,7 @@ void moveAlgoRoverArm(int targetPoint)
               {
                   Serial.print(" MainDown : ");
                   Serial.print(movePos);
+                  mainArmTargetPoint = movePos;
               }
           }
           holdVal = servoValue;
@@ -266,6 +293,7 @@ void moveAlgoRoverArm(int targetPoint)
               {
                   mainArmServo.write(movePos);
                   delay(mainSubBetweenDelay);
+                  mainArmTargetPoint = movePos;
               }
           }
           else
@@ -274,6 +302,7 @@ void moveAlgoRoverArm(int targetPoint)
               {
                   mainArmServo.write(movePos);
                   delay(mainSubBetweenDelay);
+                  mainArmTargetPoint = movePos;
               }
           }
           holdVal = servoValue; // Update holdVal for next iteration
@@ -364,12 +393,63 @@ void testLeftRightEndButton(){
   delay(100);
 }
 
+// Function to calculate inverse sine (arcsin)
+float calculateInverseSine(float y, float r) {
+  // Check if radius is zero to avoid division by zero
+  if (r == 0) {
+    Serial.println("Error: Radius cannot be zero");
+    return 0;
+  }
+  
+  // Calculate y/r ratio
+  float ratio = y/r;
+  
+  // Check if y/r is within valid range [-1, 1]
+  if (ratio < -1 || ratio > 1) {
+    Serial.println("Error: y/r ratio must be between -1 and 1");
+    return 0;
+  }
+  
+  // Calculate inverse sine in radians
+  float val = asin(ratio);
+  
+  return val;
+}
+
+float calculateResult(float x, float r, float val) {
+  // Calculate cosine term
+  float cosVal = r * cos(val);
+  
+  // Calculate final result
+  float result = x + cosVal;
+  
+  return result;
+}
+
+
 void loop()
 {
+
+  // float x = 150;
+  // float y = 50;
+  // float r = 100;
+  // float val = calculateInverseSine(y, r);
+  // float result = calculateResult(x, r, val);
+  // #if ARM_TEST_MODE
+  //   Serial.print(asin(1));
+  //   Serial.print("Angle : ");
+  //   Serial.print(val);
+  //   Serial.print(" Distance : ");
+  //   Serial.println(result);
+  //   delay(5000);
+  // #else
+
+  // #endif
+  
   // testLeftRightEndButton();
   // resetRover();
-  // gotoInitialStepperArmPoint();
-  // gotoInitialServoArmPoint();
+  gotoInitialServoArmPoint();
+  gotoInitialStepperArmPoint();
   moveToHorizontalPosition();
   // moveNextRover();
 }
