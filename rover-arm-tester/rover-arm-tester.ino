@@ -76,7 +76,7 @@ void moveNextRover(){
   #endif
 
   digitalWrite(ROVER_WHEEL_PIN,HIGH);
-  delay(2000); // move wheel for 3 seconds
+  delay(2 * 1000); // move wheel for 2 seconds
   digitalWrite(ROVER_WHEEL_PIN,LOW);
   delay(2 * 1000);
 }
@@ -85,7 +85,7 @@ void gotoInitialStepperArmPoint()
 {
     while (digitalRead(LEFT_ENDPOINT_PIN) == LOW)
     {
-        stepMotor(true); // Move in reverse to the initial point --false
+        stepMotor(true);
         delay(1);
     }
     currentHorizontalPosition = 0;
@@ -99,9 +99,6 @@ void gotoInitialServoArmPoint(){
 void moveToHorizontalPositionTimer(){
   currentHorizontalPosition++;
   timer = 0;
-  // #if SERIAL_DEBUG
-  //   Serial.println(currentHorizontalPosition);
-  // #endif
 }
 
 void moveToHorizontalPosition()
@@ -119,7 +116,7 @@ void moveToHorizontalPosition()
 void moveStepperLine(int horizontalTarget){
         while (currentHorizontalPosition <= horizontalTarget)
         {
-            stepMotor(false); // -- before true
+            stepMotor(false);
             if(timer>=10000){
               moveToHorizontalPositionTimer();
             }
@@ -162,190 +159,6 @@ void stepMotor(bool direction)
     setStepperPins(stepSequence[stepIndex]);
 }
 
-void moveRoverArm(int targetPoint)
-{
-    int subArmEndPointMax = 50;
-    const int subArmInitialPoint = 150;
-    const int mainArmInitialPoint = 50;
-    const int mainDelay = 100;
-    const int subDelay = 50;
-
-    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
-    #if SERIAL_DEBUG
-      Serial.println(mainArmTargetPoint);
-    #endif
-    // Move main arm to the target position
-    for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++)
-    {
-        mainArmServo.write(pos);
-        delay(mainDelay);
-    }
-
-    // Move sub arm down
-    for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
-    {
-        if (digitalRead(ENDPOINT_PIN) == HIGH)
-        {
-            subArmEndPointMax = pos;
-            break;
-        }
-        subArmServo.write(pos);
-        delay(subDelay);
-    }
-
-    // Activate endpoint motor
-    digitalWrite(ENDPOINT_MOTOR, HIGH);
-    delay(1000); // Activate motor for 1 second
-    digitalWrite(ENDPOINT_MOTOR, LOW);
-
-    // Reset sub arm position
-    for (int pos = subArmEndPointMax; pos <= subArmInitialPoint; pos++)
-    {
-        subArmServo.write(pos);
-        delay(subDelay);
-    }
-
-    // Reset main arm position
-    for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--)
-    {
-        mainArmServo.write(pos);
-        delay(mainDelay);
-    }
-}
-
-void moveAlgoRoverArm(int targetPoint)
-{
-    const int subArmInitialPoint = 150;
-    const int mainArmInitialPoint = 50;
-    const int mainDelay = 30;
-    const int subDelay = 50;
-    const int mainSubBetweenDelay = 50;
-    int subArmEndPointMax = 50;
-    int holdVal = 0;
-    int servoValue = 0;
-
-    int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
-    #if SERIAL_DEBUG
-      Serial.println(mainArmTargetPoint);
-    #endif
-    // Move main arm to the target position
-    for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++)
-    {
-        #if ARM_TEST_MODE
-          Serial.print("Main arm initial : ");
-          holdVal = pos;
-          Serial.println(pos);
-          delay(10);
-        #else
-          holdVal = pos;
-          mainArmServo.write(pos);
-          delay(mainDelay);
-        #endif
-    }
-
-    // Move sub arm down
-    for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
-    {
-        if (digitalRead(ENDPOINT_PIN) == HIGH)
-        {
-            subArmEndPointMax = pos;
-            break;
-        }
-        float degrees = map(pos, 50, 150, 0, 180);
-        float radians = degrees * PI/180;
-        float mainArmPos = sin(radians);
-        servoValue = map(mainArmPos * 1000, 0, 1000, 50, 150);
-        Serial.print(holdVal);
-        Serial.print(" : ");
-        Serial.print(servoValue);
-        Serial.print(" : ");
-
-        #if ARM_TEST_MODE
-          Serial.print("Sub : ");
-          Serial.print(pos);
-          if (holdVal <= servoValue)
-          {
-              for (int movePos = holdVal; movePos <= servoValue; movePos++)
-              {
-                  Serial.print(" MainUP : ");
-                  Serial.print(movePos);
-                  mainArmTargetPoint = movePos;
-              }
-          }
-          else
-          {
-              for (int movePos = holdVal; movePos >= servoValue; movePos--)
-              {
-                  Serial.print(" MainDown : ");
-                  Serial.print(movePos);
-                  mainArmTargetPoint = movePos;
-              }
-          }
-          holdVal = servoValue;
-          Serial.print(" HoldVal : ");
-          Serial.println(holdVal);
-        #else
-          subArmServo.write(pos);
-          delay(subDelay);
-          if (holdVal <= servoValue)
-          {
-              for (int movePos = holdVal; movePos <= servoValue; movePos++)
-              {
-                  mainArmServo.write(movePos);
-                  delay(mainSubBetweenDelay);
-                  mainArmTargetPoint = movePos;
-              }
-          }
-          else
-          {
-              for (int movePos = holdVal; movePos >= servoValue; movePos--)
-              {
-                  mainArmServo.write(movePos);
-                  delay(mainSubBetweenDelay);
-                  mainArmTargetPoint = movePos;
-              }
-          }
-          holdVal = servoValue; // Update holdVal for next iteration
-        #endif
-    }
-
-    #if ARM_TEST_MODE
-      Serial.println("Pollination");
-      delay(100);
-    #else
-      // Activate endpoint motor
-      digitalWrite(ENDPOINT_MOTOR, HIGH);
-      delay(1000); // Activate motor for 1 second
-      digitalWrite(ENDPOINT_MOTOR, LOW);
-    #endif
-
-    // // Reset sub arm position
-    for (int pos = subArmEndPointMax; pos <= subArmInitialPoint; pos++)
-    {
-      #if ARM_TEST_MODE
-        Serial.print("Sub arm last : ");
-        Serial.println(pos);
-        delay(10);
-      #else
-        subArmServo.write(pos);
-        delay(subDelay);
-      #endif
-    }
-
-    // // Reset main arm position
-    for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--)
-    {
-      #if ARM_TEST_MODE
-        Serial.print("Main arm last : ");
-        Serial.println(pos);
-        delay(10);
-      #else
-        mainArmServo.write(pos);
-        delay(mainDelay);
-      #endif
-    }
-}
-
 void resetRover()
 {
 
@@ -358,29 +171,17 @@ void resetRover()
       Serial.println("Resetting the rover arm");
   #endif
 
-    for (int pos = 50; pos <= 100; pos++)
-    {
-        mainArmServo.write(pos);
-        delay(20);
-    }
+  gotoInitialStepperArmPoint();
 
-    for (int pos = 50; pos <= 160; pos++)
-    {
-        subArmServo.write(pos);
-        delay(40);
-    }
+  for(int i = 180 ; i >= 0 ; i--){
+    mainArmServo.write(i);
+    delay(50);
+  }
 
-    for (int pos = 160; pos >= 50; pos--)
-    {
-        subArmServo.write(pos);
-        delay(40);
-    }
-
-    for (int pos =100; pos >= 50; pos--)
-    {
-        mainArmServo.write(pos);
-        delay(20);
-    }
+  for(int i = 0 ; i <= 180 ; i++){
+    mainArmServo.write(i);
+    delay(50);
+  }
 }
 
 void testLeftRightEndButton(){
@@ -393,36 +194,23 @@ void testLeftRightEndButton(){
   delay(100);
 }
 
-// Function to calculate inverse sine (arcsin)
 float calculateInverseSine(float y, float r) {
-  // Check if radius is zero to avoid division by zero
   if (r == 0) {
     Serial.println("Error: Radius cannot be zero");
     return 0;
   }
-  
-  // Calculate y/r ratio
   float ratio = y/r;
-  
-  // Check if y/r is within valid range [-1, 1]
   if (ratio < -1 || ratio > 1) {
     Serial.println("Error: y/r ratio must be between -1 and 1");
     return 0;
   }
-  
-  // Calculate inverse sine in radians
   float val = asin(ratio);
-  
   return val;
 }
 
 float calculateResult(float x, float r, float val) {
-  // Calculate cosine term
   float cosVal = r * cos(val);
-  
-  // Calculate final result
   float result = x + cosVal;
-  
   return result;
 }
 
