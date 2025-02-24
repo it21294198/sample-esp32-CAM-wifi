@@ -217,28 +217,29 @@ float calculateResult(float x, float r, float val) {
 
 void loop()
 {
-  int BUFFER = 3;
-  int16_t xVal[BUFFER] = {200, 400, 600};
-  int16_t yVal[BUFFER] = {50, 75, 100};
-  Serial.println("----------------------------");
-  for (int i = 0; i < BUFFER; i++){
-    float x = xVal[i];
-    float y = yVal[i];
-    float r = 100;
-    float val = calculateInverseSine(y, r);
-    float result = calculateResult(x, r, val);
+  // int BUFFER = 3;
+  // int16_t xVal[BUFFER] = {200, 400, 600};
+  // int16_t yVal[BUFFER] = {50, 75, 100};
+  // Serial.println("----------------------------");
+  // for (int i = 0; i < BUFFER; i++){
+  //   float x = xVal[i];
+  //   float y = yVal[i];
+  //   float r = 100;
+  //   float val = calculateInverseSine(y, r);
+  //   float result = calculateResult(x, r, val);
 
-    Serial.print("Angle : ");
-    Serial.print(val * r);
-    Serial.print(" Distance : ");
-    Serial.println(result);
-    delay(3000);
-  }
+  //   Serial.print("Angle : ");
+  //   Serial.print(val * r);
+  //   Serial.print(" Distance : ");
+  //   Serial.println(result);
+  //   delay(3000);
+  // }
+
   // testLeftRightEndButton();
   // resetRover();
-  // gotoInitialServoArmPoint();
-  // gotoInitialStepperArmPoint();
-  // moveToHorizontalPosition();
+  gotoInitialServoArmPoint();
+  gotoInitialStepperArmPoint();
+  moveToHorizontalPosition();
   // moveNextRover();
 }
 

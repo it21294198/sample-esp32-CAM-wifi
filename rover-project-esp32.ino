@@ -30,6 +30,14 @@ GND -------------- GND
 // Flash Memory
 #include <EEPROM.h>
 
+// Temp and Humidity capture
+#include "DHT.h"
+
+// Pin where the DHT sensor is connected
+#define DHTPIN 2
+
+DHT dht(DHTPIN, DHTTYPE);
+
 // EEPROM configuration
 #define EEPROM_SIZE 128
 #define SSID_ADDR 0
@@ -93,11 +101,21 @@ bool captureAndUploadImage() {
     // Prepare JSON payload
     StaticJsonDocument<1024> doc;
 
+    // Get Sensor data
+    float temp = dht.readTemperature();
+    float humidity = dht.readHumidity();
+
+    if (isnan(temp) || isnan(humidity))
+    {
+      temp = 0;
+      humidity = 0;
+    }
+
     doc["roverId"] = uid;
     doc["randomId"] = 1;
-    doc["batteryStatus"] = 12.3;
-    doc["temp"] = 12.3;
-    doc["humidity"] = 12.3;
+    doc["batteryStatus"] = 1;
+    doc["temp"] = temp;
+    doc["humidity"] = humidity;
     doc["imageData"] = base64Image;
 
     // Serial.println(base64Image); // --for testing
@@ -646,6 +664,7 @@ void setup() {
     Serial.println("\nESP32 Master Started");
     #endif
 
+    dht.begin();
     EEPROM_Config_Begin();
     WIFI_Config();
     Camara_Config();
