@@ -4,7 +4,7 @@
 #define SERIAL_DEBUG 1
 #define ARM_TEST_MODE 1
 
-#define BUFFER_SIZE 3
+#define BUFFER_SIZE 2
 
 #define STEPPER_PIN1 2
 #define STEPPER_PIN2 3
@@ -14,18 +14,17 @@
 #define ENDPOINT_PIN 6
 #define ENDPOINT_MOTOR 7
 
-#define RIGHT_ENDPOINT_PIN 8
 #define LEFT_ENDPOINT_PIN 9
+#define ROVER_WHEEL_PIN 10
 
-#define SUB_ARM_SERVO_PIN 10
 #define MAIN_ARM_SERVO_PIN 11
 
-#define ROVER_WHEEL_PIN 12
+#define Z_ARM_UP_PIN 12
+#define Z_ARM_DOWN_PIN 13
 
 #define PI 3.1415926535897932384626433832795
 
 Servo mainArmServo;
-Servo subArmServo;
 
 int stepIndex = 0;
 const int stepSequence[8][4] = {
@@ -39,8 +38,10 @@ const int stepSequence[8][4] = {
     {1, 0, 0, 1}  // Step 8
 };
 
-int16_t xValues[BUFFER_SIZE] = {2, 4, 6};
-int16_t yValues[BUFFER_SIZE] = {100, 200, 300};
+// int16_t xValues[BUFFER_SIZE] = {2, 4};
+// int16_t yValues[BUFFER_SIZE] = {100, 200};
+int16_t xValues[BUFFER_SIZE] = {2, 3};
+int16_t yValues[BUFFER_SIZE] = {100, 200};
 
 int currentHorizontalPosition = 0;
 long timer = 0;
@@ -54,12 +55,10 @@ void setup()
   #endif
 
     mainArmServo.attach(MAIN_ARM_SERVO_PIN);
-    subArmServo.attach(SUB_ARM_SERVO_PIN);
 
     pinMode(ENDPOINT_PIN, INPUT);
     pinMode(ENDPOINT_MOTOR, OUTPUT);
 
-    pinMode(RIGHT_ENDPOINT_PIN, INPUT);
     pinMode(LEFT_ENDPOINT_PIN, INPUT);
 
     pinMode(STEPPER_PIN1, OUTPUT);
@@ -68,13 +67,19 @@ void setup()
     pinMode(STEPPER_PIN4, OUTPUT);
 
     pinMode(ROVER_WHEEL_PIN,OUTPUT);
+
+    pinMode(Z_ARM_DOWN_PIN,OUTPUT);
+    pinMode(Z_ARM_UP_PIN,OUTPUT);
+
+    digitalWrite(Z_ARM_UP_PIN,LOW);
+    digitalWrite(Z_ARM_DOWN_PIN,LOW);
+    delay(1000);
 }
 
 void moveNextRover(){
   #if SERIAL_DEBUG
     Serial.println("Move rover next");
   #endif
-
   digitalWrite(ROVER_WHEEL_PIN,HIGH);
   delay(2 * 1000); // move wheel for 2 seconds
   digitalWrite(ROVER_WHEEL_PIN,LOW);
@@ -92,13 +97,16 @@ void gotoInitialStepperArmPoint()
 }
 
 void gotoInitialServoArmPoint(){
-  const int mainArmInitialPoint = 180;
+  const int mainArmInitialPoint = 170;
   mainArmServo.write(mainArmInitialPoint);
 }
 
 void moveToHorizontalPositionTimer(){
   currentHorizontalPosition++;
   timer = 0;
+  #if SERIAL_DEBUG
+    Serial.println(currentHorizontalPosition);
+  #endif
 }
 
 void moveToHorizontalPosition()
@@ -109,7 +117,7 @@ void moveToHorizontalPosition()
 
   for (int i = 0; i < BUFFER_SIZE; i++){
     moveStepperLine(xValues[i]);
-    moveServoAngle(map(yValues[i],0,400,75,180)); // max 75
+    moveServoAngle(map(yValues[i],0,400,80,170)); // max 170 - min 80
   }
 }
 
@@ -132,7 +140,7 @@ void moveServoAngle(int angle){
       delay(50);
     }
 
-    performAction();
+    // performZAction();
 
     for(int i = angle ; i <= 180 ; i++){
       mainArmServo.write(i);
@@ -141,8 +149,29 @@ void moveServoAngle(int angle){
 
 }
 
-void performAction(){
-  delay(1000);
+void perfomrPollination(){
+  digitalWrite(ENDPOINT_MOTOR, HIGH);
+  delay(3000);
+  digitalWrite(ENDPOINT_MOTOR, LOW);
+}
+
+void performZAction() {
+    unsigned long startTime = millis(); // Record the start time
+
+    // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
+    while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000)) {  
+        digitalWrite(Z_ARM_DOWN_PIN, HIGH);
+    }
+    digitalWrite(Z_ARM_DOWN_PIN, LOW); // Stop moving down after timeout or endpoint trigger
+
+    perfomrPollination();
+
+    // Move the arm up
+    digitalWrite(Z_ARM_UP_PIN, HIGH);
+    delay(7000);
+    digitalWrite(Z_ARM_UP_PIN, LOW);
+
+    delay(3000); // Final wait time
 }
 
 void setStepperPins(int step[4])
@@ -189,8 +218,6 @@ void testLeftRightEndButton(){
   Serial.print(digitalRead(ENDPOINT_PIN));
   Serial.print(" Left status : ");
   Serial.print(digitalRead(LEFT_ENDPOINT_PIN));
-  Serial.print(" Right status : ");
-  Serial.println(digitalRead(RIGHT_ENDPOINT_PIN));
   delay(100);
 }
 
@@ -235,11 +262,17 @@ void loop()
   //   delay(3000);
   // }
 
+  // moveServoAngle(map(0,0,400,80,170));
   // testLeftRightEndButton();
   // resetRover();
-  gotoInitialServoArmPoint();
-  gotoInitialStepperArmPoint();
-  moveToHorizontalPosition();
+  // perfomrPollination();
+  // performZAction();
+
+  // gotoInitialServoArmPoint();
+  // gotoInitialStepperArmPoint();
+  // moveToHorizontalPosition();
+  // gotoInitialStepperArmPoint();
   // moveNextRover();
+
 }
 
