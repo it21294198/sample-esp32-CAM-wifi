@@ -6,7 +6,7 @@ GND -------------- GND
 */
 
 // Comment for test to production version
-#define SERIAL_DEBUG
+#define SERIAL_DEBUG 1
 
 // Communication libs
 #include <Wire.h>
@@ -46,23 +46,23 @@ bool getArrayData()
         \"status\": 200,\
         \"imageResult\": [\
             {\
-            \"x\": 0.7109,\
-            \"y\": 0.4681,\
+            \"x\": 0.02,\
+            \"y\": 0.1000,\
             \"confidence\": 0.7\
             },\
             {\
-            \"x\": 0.6109,\
-            \"y\": 0.5472,\
+            \"x\": 0.03,\
+            \"y\": 0.2000,\
             \"confidence\": 0.59\
             },\
             {\
-            \"x\": 0.4371,\
-            \"y\": 0.5716,\
+            \"x\": 0.05,\
+            \"y\": 0.3000,\
             \"confidence\": 0.87\
             },\
             {\
-            \"x\": 0.3238,\
-            \"y\": 0.7576,\
+            \"x\": 0.07,\
+            \"y\": 0.3500,\
             \"confidence\": 0.71\
             }\
         ]\
@@ -165,7 +165,7 @@ void sendResponseToArduino(JsonArray imageResult)
 
     // Scaling factors for coordinates
     int xFactor = 100;
-    int yFactor = 100;
+    int yFactor = 1000;
 
     // Extract x and y values from the JSON array
     size_t index = 0;
