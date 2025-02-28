@@ -53,20 +53,35 @@ bool getArrayData()
             {\
             \"x\": 0.03,\
             \"y\": 0.2000,\
-            \"confidence\": 0.59\
-            },\
-            {\
-            \"x\": 0.05,\
-            \"y\": 0.3000,\
-            \"confidence\": 0.87\
-            },\
-            {\
-            \"x\": 0.07,\
-            \"y\": 0.3500,\
             \"confidence\": 0.71\
             }\
         ]\
     }";
+    // const char *jsonString = "{\
+    //     \"status\": 200,\
+    //     \"imageResult\": [\
+    //         {\
+    //         \"x\": 0.02,\
+    //         \"y\": 0.1000,\
+    //         \"confidence\": 0.7\
+    //         },\
+    //         {\
+    //         \"x\": 0.03,\
+    //         \"y\": 0.2000,\
+    //         \"confidence\": 0.59\
+    //         },\
+    //         {\
+    //         \"x\": 0.05,\
+    //         \"y\": 0.3000,\
+    //         \"confidence\": 0.87\
+    //         },\
+    //         {\
+    //         \"x\": 0.07,\
+    //         \"y\": 0.3500,\
+    //         \"confidence\": 0.71\
+    //         }\
+    //     ]\
+    // }";
 
     // Parse the JSON string
     DeserializationError error = deserializeJson(doc, jsonString);
@@ -268,7 +283,7 @@ void loop()
     if (running)
     {
         // Read sensor data
-        readDHTSensor();
+        // readDHTSensor();
 
         // Process and send image data
         if (getArrayData())

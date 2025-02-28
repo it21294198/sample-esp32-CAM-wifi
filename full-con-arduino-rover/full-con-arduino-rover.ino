@@ -237,7 +237,6 @@ void startRoverOperation()
   Serial.println("Move_To_Pollination_Points");
 #endif
   moveToHorizontalPosition();
-  gotoInitialStepperArmPoint();
 #if SERIAL_DEBUG
   Serial.println("Move_Rover_Forward");
 #endif
@@ -254,10 +253,10 @@ void moveToHorizontalPosition()
   Serial.println("Starting arm movements");
 #endif
 
-  for (int i = 0; i < BUFFER_SIZE; i++)
+  for (int i = 0; i < count; i++)
   {
     moveStepperLine(xValues[i]);
-    moveServoAngle(map(yValues[i], 0, 400, 80, 170)); // max 170 - min 80
+    moveServoAngle(map(yValues[i], 0, 400, 80, 180)); // max 180 - min 80
   }
 }
 
@@ -275,7 +274,7 @@ void moveStepperLine(int horizontalTarget)
   while (currentHorizontalPosition <= horizontalTarget)
   {
     stepMotor(true);
-    if (timer >= 10000)
+    if (timer >= 5000) // 10,000
     {
       moveToHorizontalPositionTimer();
     }
@@ -367,7 +366,7 @@ void gotoInitialStepperArmPoint()
 
 void gotoInitialServoArmPoint()
 {
-  const int mainArmInitialPoint = 170;
+  const int mainArmInitialPoint = 180;
   mainArmServo.write(mainArmInitialPoint);
 }
 
