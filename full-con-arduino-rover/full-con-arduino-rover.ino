@@ -10,32 +10,31 @@
 #define ENDPOINT_PIN 6
 #define ENDPOINT_MOTOR 7
 
-#define RIGHTEND_POINT_PIN 8
+#define BUTTON_PIN 8
+
 #define LEFT_ENDPOINT_PIN 9
+#define ROVER_WHEEL_PIN 10
 
-#define SUB_ARM_SERVO 10
-#define MAIN_ARM_SERVO 11
+#define MAIN_ARM_SERVO_PIN 11
 
-#define ROVER_WHEEL_PIN 12
-#define ROVER_WHEEL_SENSOR 13
+#define Z_ARM_UP_PIN 12
+#define Z_ARM_DOWN_PIN 13
 
 #define I2C_SLAVE_ADDR 0x08
-#define JSON_CAPACITY 512
-#define BUTTON_PIN 8
-#define MAX_COORDINATES 10  // Maximum number of coordinates to store
 
 // Custom Command
-#define RESET_COMMAND "rs" // for "reset"
+#define RESET_COMMAND "rs"    // for "reset"
 #define MOVENEXT_COMMAND "mn" // for "move_next"
 
 // Set to 1 to enable serial debugging, 0 to disable
 #define SERIAL_DEBUG 1
+#define ARM_TEST_MODE 1
 
 Servo mainArmServo;
-Servo subArmServo;
+// Servo subArmServo;
 
 // Current step in the sequence
-int stepIndex = 0; 
+int stepIndex = 0;
 const int stepSequence[8][4] = {
     {1, 0, 0, 0}, // Step 1
     {1, 1, 0, 0}, // Step 2
@@ -47,32 +46,12 @@ const int stepSequence[8][4] = {
     {1, 0, 0, 1}  // Step 8
 };
 
-// Coordinate structure
-struct Coordinates {
-  float x;
-  float y;
-  
-  // Default constructor with zero initialization
-  Coordinates() : x(0.0), y(0.0) {}
-  
-  // Parameterized constructor
-  Coordinates(float xCoord, float yCoord) : x(xCoord), y(yCoord) {}
-};
-
-// Global variables
-StaticJsonDocument<JSON_CAPACITY> doc;
-char jsonBuffer[JSON_CAPACITY];
-volatile size_t expectedLength = 0;
 volatile size_t currentIndex = 0;
 volatile bool receivingLength = true;
 volatile bool newData = false;
 volatile int roverCurrentState = 0;
 volatile bool resetReceived = false;
 volatile bool moveNextReceived = false;
-
-// Fixed-size array to store coordinates
-Coordinates coordinatesArray[MAX_COORDINATES];
-volatile size_t coordinatesCount = 0;
 
 // Define the buffer size for the received data
 #define BUFFER_SIZE 32
@@ -92,23 +71,19 @@ void setup()
   Wire.onReceive(receiveEvent);
   Wire.onRequest(requestEvent);
 
-  // Initialize serial communication for debugging
-  #if SERIAL_DEBUG
+// Initialize serial communication for debugging
+#if SERIAL_DEBUG
   Serial.begin(9600);
   Serial.println("Arduino I2C Slave initialized");
-  #endif
+#endif
 
-  mainArmServo.attach(MAIN_ARM_SERVO);
-  subArmServo.attach(SUB_ARM_SERVO);
+  mainArmServo.attach(MAIN_ARM_SERVO_PIN);
 
   pinMode(ENDPOINT_PIN, INPUT);
   pinMode(ENDPOINT_MOTOR, OUTPUT);
 
-  pinMode(RIGHTEND_POINT_PIN, INPUT);
   pinMode(LEFT_ENDPOINT_PIN, INPUT);
-
-  pinMode(ROVER_WHEEL_PIN,OUTPUT);
-  pinMode(ROVER_WHEEL_SENSOR,INPUT);
+  pinMode(ROVER_WHEEL_PIN, OUTPUT);
 
   pinMode(STEPPER_PIN1, OUTPUT);
   pinMode(STEPPER_PIN2, OUTPUT);
@@ -117,49 +92,58 @@ void setup()
 
   // Setup button pin with internal pullup
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  pinMode(Z_ARM_DOWN_PIN, OUTPUT);
+  pinMode(Z_ARM_UP_PIN, OUTPUT);
+
+  digitalWrite(Z_ARM_UP_PIN, LOW);
+  digitalWrite(Z_ARM_DOWN_PIN, LOW);
+  delay(1000);
 }
 
-void loop() {
-  #if SERIAL_DEBUG
+void loop()
+{
+#if SERIAL_DEBUG
   Serial.println(roverCurrentState);
-  #endif
+#endif
   roverCurrentState = 1;
 
-  if (resetReceived) {
-    #if SERIAL_DEBUG
+  if (resetReceived)
+  {
+#if SERIAL_DEBUG
     Serial.println("Reset command received!");
-    #endif
+#endif
     roverCurrentState = 2;
-    
+
     currentIndex = 0;
     receivingLength = true;
     newData = false;
-    memset(jsonBuffer, 0, JSON_CAPACITY);
-    
+
     delay(1000);
     resetRover();
     resetReceived = false;
     roverCurrentState = 1;
   }
 
-  if (moveNextReceived) {
-    #if SERIAL_DEBUG
+  if (moveNextReceived)
+  {
+#if SERIAL_DEBUG
     Serial.println("Move_next command received!");
-    #endif
+#endif
     roverCurrentState = 3;
     moveNextReceived = false;
-    
+
     currentIndex = 0;
     receivingLength = true;
     newData = false;
-    memset(jsonBuffer, 0, JSON_CAPACITY);
-    
+
     delay(1000);
     moveNextRover();
     roverCurrentState = 1;
   }
 
-  if (newData) {
+  if (newData)
+  {
     isReset = false;
     roverCurrentState = 0;
     startRoverOperation();
@@ -173,147 +157,167 @@ void loop() {
 void receiveEvent(int numBytes)
 {
   // Check if this might be a reset command
-  if (numBytes == 2) {  // Length of "rs" to indicates "reset"
-    char command[3] = {0};  // Extra byte for null terminator
+  if (numBytes == 2)
+  {                        // Length of "rs" to indicates "reset"
+    char command[3] = {0}; // Extra byte for null terminator
     int i = 0;
-    while (Wire.available() && i < 2) {
+    while (Wire.available() && i < 2)
+    {
       command[i++] = Wire.read();
     }
     command[2] = '\0';
-    
-    if (strcmp(command, RESET_COMMAND) == 0) {
+
+    if (strcmp(command, RESET_COMMAND) == 0)
+    {
       resetReceived = true;
       return;
     }
 
-    if (strcmp(command, MOVENEXT_COMMAND) == 0) {
+    if (strcmp(command, MOVENEXT_COMMAND) == 0)
+    {
       moveNextReceived = true;
       return;
     }
   }
 
   while (Wire.available())
-    {
-      // Read the count of coordinate pairs (16-bit integer)
-      count = Wire.read() | (Wire.read() << 8);
+  {
+    // Read the count of coordinate pairs (16-bit integer)
+    count = Wire.read() | (Wire.read() << 8);
 
-      // Read the coordinates
-      for (size_t i = 0; i < count; i++) {
-          if (Wire.available() >= 4) {
-              xValues[i] = Wire.read() | (Wire.read() << 8);
-              yValues[i] = Wire.read() | (Wire.read() << 8);
-          }
-      }
-      if( count > 0 ){
-        newData = true;
+    // Read the coordinates
+    for (size_t i = 0; i < count; i++)
+    {
+      if (Wire.available() >= 4)
+      {
+        xValues[i] = Wire.read() | (Wire.read() << 8);
+        yValues[i] = Wire.read() | (Wire.read() << 8);
       }
     }
+    if (count > 0)
+    {
+      newData = true;
+    }
+  }
 }
 
 void requestEvent()
 {
-    // Send the button state when master requests it
-    Wire.write(roverCurrentState);
+  // Send the button state when master requests it
+  Wire.write(roverCurrentState);
 }
 
-void startRoverOperation() {
+void startRoverOperation()
+{
   // Process the received coordinates
-    #if SERIAL_DEBUG
-    Serial.print("Received ");
-    Serial.print(count);
-    Serial.println(" coordinate pairs:");
-    for (size_t i = 0; i < count; i++) {
-        Serial.print("Point ");
-        Serial.print(i + 1);
-        Serial.print(": X = ");
-        Serial.print(xValues[i]);
-        Serial.print(", Y = ");
-        Serial.println(yValues[i]);
-    }
-    #endif
-    
-    // Control logic starts from here
-    #if SERIAL_DEBUG
-      Serial.println("goto_Initial_Stepper_Arm_Point");
-    #endif
-    gotoInitialStepperArmPoint();
-    #if SERIAL_DEBUG
-      Serial.println("move_To_Horizontal_Position");
-    #endif
-    moveToHorizontalPosition();
-    #if SERIAL_DEBUG
-      Serial.println("move_Rover_Forward");
-    #endif
-    moveRoverForward();
+#if SERIAL_DEBUG
+  Serial.print("Received ");
+  Serial.print(count);
+  Serial.println(" coordinate pairs:");
+  for (size_t i = 0; i < count; i++)
+  {
+    Serial.print("Point ");
+    Serial.print(i + 1);
+    Serial.print(": X = ");
+    Serial.print(xValues[i]);
+    Serial.print(", Y = ");
+    Serial.println(yValues[i]);
+  }
+#endif
 
-    delay(50);
-    // allowing to performe next operation
-    roverCurrentState = 1;
+// Control logic starts from here
+#if SERIAL_DEBUG
+  Serial.println("goto_Initial_Stepper_Arm_Point");
+#endif
+  gotoInitialStepperArmPoint();
+#if SERIAL_DEBUG
+  Serial.println("move_To_Horizontal_Position");
+#endif
+  moveToHorizontalPosition();
+#if SERIAL_DEBUG
+  Serial.println("move_Rover_Forward");
+#endif
+  moveRoverForward();
+
+  delay(50);
+  // allowing to performe next operation
+  roverCurrentState = 1;
 }
 
-void setStepperPins(int step[4]) {
+void setStepperPins(int step[4])
+{
   digitalWrite(STEPPER_PIN1, step[0]);
   digitalWrite(STEPPER_PIN2, step[1]);
   digitalWrite(STEPPER_PIN3, step[2]);
   digitalWrite(STEPPER_PIN4, step[3]);
 }
 
-void stepMotor(bool direction) {
-  if (direction) {
+void stepMotor(bool direction)
+{
+  if (direction)
+  {
     stepIndex = (stepIndex + 1) % 8; // Move to the next step
-  } else {
+  }
+  else
+  {
     stepIndex = (stepIndex - 1 + 8) % 8; // Move to the previous step
   }
   setStepperPins(stepSequence[stepIndex]);
 }
 
-void moveRoverForward(){
-  #if SERIAL_DEBUG
-    Serial.println("Move rover next");
-  #endif
+void moveRoverForward()
+{
+#if SERIAL_DEBUG
+  Serial.println("Move rover next");
+#endif
   delay(1000);
-  digitalWrite(ROVER_WHEEL_PIN,HIGH);
+  digitalWrite(ROVER_WHEEL_PIN, HIGH);
   delay(2000); // move wheel for 2 seconds
-  digitalWrite(ROVER_WHEEL_PIN,LOW);
+  digitalWrite(ROVER_WHEEL_PIN, LOW);
   delay(2000);
 }
 
-void moveToHorizontalPosition() {
-    for (size_t i = 0; i < count-1 ; i++) {
-      int horizontalTarget = int(xValues[i]);
-        while (currentHorizontalPosition <= horizontalTarget)
-        {
-            stepMotor(false); // -- before true
-            if(timer>=10000){
-              moveToHorizontalPositionTimer();
-            }
-            timer++;
-            delay(1);
-        }
-        #if SERIAL_DEBUG
-            Serial.println(horizontalTarget);
-        #endif
-        moveRoverArm(int(yValues[i])); // Perfomr servo arm action
-        delay(2000);
+void moveToHorizontalPosition()
+{
+  for (size_t i = 0; i < count - 1; i++)
+  {
+    int horizontalTarget = int(xValues[i]);
+    while (currentHorizontalPosition <= horizontalTarget)
+    {
+      stepMotor(false); // -- before true
+      if (timer >= 10000)
+      {
+        moveToHorizontalPositionTimer();
+      }
+      timer++;
+      delay(1);
     }
+#if SERIAL_DEBUG
+    Serial.println(horizontalTarget);
+#endif
+    moveRoverArm(int(yValues[i])); // Perfomr servo arm action
+    delay(2000);
+  }
 }
 
-void gotoInitialStepperArmPoint() {
-    while (digitalRead(LEFT_ENDPOINT_PIN) == LOW) {
-        stepMotor(true); // Move in reverse to the initial point
-        delay(1);
-    }
-    currentHorizontalPosition = 0;
+void gotoInitialStepperArmPoint()
+{
+  while (digitalRead(LEFT_ENDPOINT_PIN) == LOW)
+  {
+    stepMotor(true); // Move in reverse to the initial point
+    delay(1);
+  }
+  currentHorizontalPosition = 0;
 }
 
-void gotoInitialServoArmPoint(){
-  const int subArmInitialPoint = 150;
+void gotoInitialServoArmPoint()
+{
   const int mainArmInitialPoint = 50;
-  subArmServo.write(subArmInitialPoint);
   mainArmServo.write(mainArmInitialPoint);
 }
 
-void moveToHorizontalPositionTimer(){
+void moveToHorizontalPositionTimer()
+{
   currentHorizontalPosition++;
   timer = 0;
   // #if SERIAL_DEBUG
@@ -323,97 +327,80 @@ void moveToHorizontalPositionTimer(){
 
 void moveRoverArm(int targetPoint)
 {
-    int subArmEndPointMax = 50;
-    const int subArmInitialPoint = 150;
-    const int mainArmInitialPoint = 50;
-    const int mainDelay = 30;
-    const int subDelay = 50;
+  int subArmEndPointMax = 50;
+  const int subArmInitialPoint = 150;
+  const int mainArmInitialPoint = 50;
+  const int mainDelay = 30;
+  const int subDelay = 50;
 
-    const int mainArmTargetPoint = map(targetPoint,0,400,mainArmInitialPoint,100);
-    #if SERIAL_DEBUG
-      Serial.println(mainArmTargetPoint);
-    #endif
-    // Move main arm to the target position
-    for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++)
+  const int mainArmTargetPoint = map(targetPoint, 0, 400, mainArmInitialPoint, 100);
+#if SERIAL_DEBUG
+  Serial.println(mainArmTargetPoint);
+#endif
+  // Move main arm to the target position
+  for (int pos = mainArmInitialPoint; pos <= mainArmTargetPoint; pos++)
+  {
+    mainArmServo.write(pos);
+    delay(mainDelay);
+  }
+
+  // Move sub arm down
+  for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
+  {
+    if (digitalRead(ENDPOINT_PIN) == HIGH)
     {
-        mainArmServo.write(pos);
-        delay(mainDelay);
+      subArmEndPointMax = subArmInitialPoint;
+      break;
     }
+    delay(subDelay);
+  }
 
-    // Move sub arm down
-    for (int pos = subArmInitialPoint; pos >= subArmEndPointMax; pos--)
-    {
-        if (digitalRead(ENDPOINT_PIN) == HIGH)
-        {
-            subArmEndPointMax = subArmInitialPoint;
-            break;
-        }
-        subArmServo.write(pos);
-        delay(subDelay);
-    }
+  // Activate endpoint motor
+  digitalWrite(ENDPOINT_MOTOR, HIGH);
+  delay(1000); // Activate motor for 1 second
+  digitalWrite(ENDPOINT_MOTOR, LOW);
 
-    // Activate endpoint motor
-    digitalWrite(ENDPOINT_MOTOR, HIGH);
-    delay(1000); // Activate motor for 1 second
-    digitalWrite(ENDPOINT_MOTOR, LOW);
-
-    // Reset sub arm position
-    for (int pos = subArmEndPointMax; pos <= subArmInitialPoint; pos++)
-    {
-        subArmServo.write(pos);
-        delay(subDelay);
-    }
-
-    // Reset main arm position
-    for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--)
-    {
-        mainArmServo.write(pos);
-        delay(mainDelay);
-    }
+  // Reset main arm position
+  for (int pos = mainArmTargetPoint; pos >= mainArmInitialPoint; pos--)
+  {
+    mainArmServo.write(pos);
+    delay(mainDelay);
+  }
 }
 
-void resetRover(){
-  if(isReset){
+void resetRover()
+{
+  if (isReset)
+  {
     return 0;
   }
   isReset = true;
 
-  #if SERIAL_DEBUG
-      Serial.println("Resetting the rover arm");
-  #endif
+#if SERIAL_DEBUG
+  Serial.println("Resetting the rover arm");
+#endif
 
-    for (int pos = 50; pos <= 100; pos++)
-    {
-        mainArmServo.write(pos);
-        delay(20);
-    }
+  for (int pos = 50; pos <= 100; pos++)
+  {
+    mainArmServo.write(pos);
+    delay(20);
+  }
 
-    for (int pos = 50; pos <= 160; pos++)
-    {
-        subArmServo.write(pos);
-        delay(40);
-    }
-
-    for (int pos = 160; pos >= 50; pos--)
-    {
-        subArmServo.write(pos);
-        delay(40);
-    }
-
-    for (int pos =100; pos >= 50; pos--)
-    {
-        mainArmServo.write(pos);
-        delay(20);
-    }
+  for (int pos = 100; pos >= 50; pos--)
+  {
+    mainArmServo.write(pos);
+    delay(20);
+  }
 }
 
-void moveNextRover(){
-  #if SERIAL_DEBUG
-    Serial.println("Move rover next");
-  #endif
+void moveNextRover()
+{
+#if SERIAL_DEBUG
+  Serial.println("Move rover next");
+#endif
   delay(1000);
-  digitalWrite(ROVER_WHEEL_PIN,HIGH);
+  digitalWrite(ROVER_WHEEL_PIN, HIGH);
   delay(2000); // move wheel for 2 seconds
-  digitalWrite(ROVER_WHEEL_PIN,LOW);
+  digitalWrite(ROVER_WHEEL_PIN, LOW);
   delay(2000);
 }
