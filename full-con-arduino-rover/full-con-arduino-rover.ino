@@ -256,7 +256,7 @@ void moveToHorizontalPosition()
   for (int i = 0; i < count; i++)
   {
     moveStepperLine(xValues[i]);
-    moveServoAngle(map(yValues[i], 0, 400, 80, 180)); // max 180 - min 80
+    moveServoAngle(map(yValues[i], 0, 40, 180, 80)); // max 180 - min 80
   }
 }
 
@@ -313,7 +313,8 @@ void performZAction()
   unsigned long startTime = millis(); // Record the start time
 
   // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
-  while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000))
+  // while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000))
+  while ((millis() - startTime < 7000))
   {
     digitalWrite(Z_ARM_DOWN_PIN, HIGH);
   }

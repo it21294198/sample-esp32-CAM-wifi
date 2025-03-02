@@ -140,7 +140,7 @@ void moveServoAngle(int angle){
       delay(50);
     }
 
-    // performZAction();
+    performZAction();
 
     for(int i = angle ; i <= 180 ; i++){
       mainArmServo.write(i);
@@ -159,7 +159,8 @@ void performZAction() {
     unsigned long startTime = millis(); // Record the start time
 
     // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
-    while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000)) {  
+    // while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000)) {  
+    while ((millis() - startTime < 7000)) {  
         digitalWrite(Z_ARM_DOWN_PIN, HIGH);
     }
     digitalWrite(Z_ARM_DOWN_PIN, LOW); // Stop moving down after timeout or endpoint trigger
@@ -268,9 +269,9 @@ void loop()
   // perfomrPollination();
   // performZAction();
 
-  // gotoInitialServoArmPoint();
-  // gotoInitialStepperArmPoint();
-  // moveToHorizontalPosition();
+  gotoInitialServoArmPoint();
+  gotoInitialStepperArmPoint();
+  moveToHorizontalPosition();
   // gotoInitialStepperArmPoint();
   // moveNextRover();
 
