@@ -27,7 +27,7 @@ DHT dht(DHTPIN, DHTTYPE);
 #define I2C_SLAVE_ADDR 0x08
 #define SDA_PIN 15
 #define SCL_PIN 14
-#define JSON_CAPACITY 512
+#define JSON_CAPACITY 20480  // for 10 flowers
 
 // whole rover status
 bool running = false;
@@ -41,52 +41,31 @@ bool getArrayData()
     // Create a JSON document for parsing
     StaticJsonDocument<JSON_CAPACITY> doc;
 
-    // Sample JSON string that would come from API response
-    const char *jsonString = "{\
-        \"status\": 200,\
-        \"imageResult\": [\
-            {\
-            \"x\": 0.02,\
-            \"y\": 0.1000,\
-            \"confidence\": 0.7\
-            },\
-            {\
-            \"x\": 0.03,\
-            \"y\": 0.2000,\
-            \"confidence\": 0.71\
-            }\
-        ]\
-    }";
-    // const char *jsonString = "{\
-    //     \"status\": 200,\
-    //     \"imageResult\": [\
-    //         {\
-    //         \"x\": 0.02,\
-    //         \"y\": 0.1000,\
-    //         \"confidence\": 0.7\
-    //         },\
-    //         {\
-    //         \"x\": 0.03,\
-    //         \"y\": 0.2000,\
-    //         \"confidence\": 0.59\
-    //         },\
-    //         {\
-    //         \"x\": 0.05,\
-    //         \"y\": 0.3000,\
-    //         \"confidence\": 0.87\
-    //         },\
-    //         {\
-    //         \"x\": 0.07,\
-    //         \"y\": 0.3500,\
-    //         \"confidence\": 0.71\
-    //         }\
-    //     ]\
-    // }";
+    // Define the JSON string
+    // const char *jsonString = R"rawliteral(
+    // {
+    //   "imageResult": [
+    //     { "x": 114.0, "y": 33.0 },
+    //     { "x": 123.0, "y": 21.0 },
+    //     { "x": 129.0, "y": 6.0 }
+    //   ]
+    // })rawliteral";
+    const char *jsonString = R"rawliteral(
+    {
+      "imageResult": [
+        { "x": 114.0, "y": 33.0 },
+        { "x": 123.0, "y": 21.0 },
+        { "x": 129.0, "y": 6.0 },
+        { "x": 140.0, "y": 33.0 },
+        { "x": 149.0, "y": 21.0 },
+        { "x": 155.0, "y": 6.0 },
+        { "x": 166.0, "y": 33.0 }
+      ]
+    })rawliteral";
 
-    // Parse the JSON string
+    // Deserialize the JSON string into the document
     DeserializationError error = deserializeJson(doc, jsonString);
 
-    // Check for parsing errors
     if (error)
     {
 #ifdef SERIAL_DEBUG
@@ -97,7 +76,7 @@ bool getArrayData()
     }
 
     // Get the image results array
-    JsonArray imageArray = doc["imageResult"].as<JsonArray>();
+    JsonArray imageArray = doc["imageResult"];
 
     if (imageArray)
     {
@@ -179,8 +158,8 @@ void sendResponseToArduino(JsonArray imageResult)
     int16_t *yValues = new int16_t[count];
 
     // Scaling factors for coordinates
-    int xFactor = 100;
-    int yFactor = 1000;
+    int xFactor = 1;
+    int yFactor = 1;
 
     // Extract x and y values from the JSON array
     size_t index = 0;

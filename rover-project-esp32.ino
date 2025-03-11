@@ -6,7 +6,7 @@ GND -------------- GND
 */
 
 // Comment for test to production version
-#define SERIAL_DEBUG
+#define SERIAL_DEBUG 0
 
 // Server libs
 #include <WiFi.h>
@@ -35,6 +35,7 @@ GND -------------- GND
 
 // Pin where the DHT sensor is connected
 #define DHTPIN 2
+#define DHTTYPE DHT11
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -69,7 +70,7 @@ int uid = 1;
 // from EEPROM
 String client_ssid;
 String client_password;
-int client_uid;
+int client_uid = 1;
 
 // whole rover status
 bool running = false;
@@ -78,8 +79,8 @@ bool running = false;
 int roverCurrentState = 0;
 
 String clientURL = "https://rusiii.com/api/Rover";
-String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
-// String baseURL = "http://192.168.1.22:8000";
+// String baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+String baseURL = "http://192.168.1.22:8000";
 
 // Camera capture and upload function
 bool captureAndUploadImage() {
@@ -87,7 +88,7 @@ bool captureAndUploadImage() {
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
         #ifdef SERIAL_DEBUG
-        Serial.println("Camera capture failed");
+          Serial.println("Camera capture failed");
         #endif
         return false;
     }
@@ -123,7 +124,8 @@ bool captureAndUploadImage() {
     serializeJson(doc, jsonPayload);
 
     // Make POST request
-    baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+    // baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+    baseURL = "http://192.168.1.22:8000";
     String roverURL = baseURL + "/rover";
     // String roverURL = baseURL + "/test/rover";
     http.begin(roverURL);
@@ -133,8 +135,8 @@ bool captureAndUploadImage() {
     if (httpResponseCode > 0) {
         String response = http.getString();
         #ifdef SERIAL_DEBUG
-        Serial.println("HTTP Response code: " + String(httpResponseCode));
-        Serial.println("Response: " + response);
+          Serial.println("HTTP Response code: " + String(httpResponseCode));
+          Serial.println("Response: " + response);
         #endif
 
         // Parse JSON response
@@ -143,8 +145,8 @@ bool captureAndUploadImage() {
         
         if (error) {
             #ifdef SERIAL_DEBUG
-            Serial.print("JSON parsing failed: ");
-            Serial.println(error.c_str());
+              Serial.print("JSON parsing failed: ");
+              Serial.println(error.c_str());
             #endif
 
             http.end();
@@ -198,8 +200,8 @@ bool captureAndUploadImage() {
         return true;
     } else {
         #ifdef SERIAL_DEBUG
-        Serial.println("Error on HTTP request");
-        Serial.println("Error code: " + String(httpResponseCode));
+          Serial.println("Error on HTTP request");
+          Serial.println("Error code: " + String(httpResponseCode));
         #endif
 
         http.end();
@@ -238,7 +240,7 @@ void sendCoordinatesToArduino(const int16_t* xValues, const int16_t* yValues, si
 
 void sendResponseToArduino(JsonArray imageResult) {
     #ifdef SERIAL_DEBUG
-    Serial.println("Processing imageResult array");
+      Serial.println("Processing imageResult array");
     #endif
 
     // Get the count of points from the JSON array
@@ -270,7 +272,7 @@ void sendResponseToArduino(JsonArray imageResult) {
     delete[] yValues;
 
     #ifdef SERIAL_DEBUG
-    Serial.println("Response sent successfully");
+      Serial.println("Response sent successfully");
     #endif
 }
 
@@ -432,7 +434,7 @@ String response = R"rawliteral(
     while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
         delay(500);
         #ifdef SERIAL_DEBUG
-        Serial.print(".");
+          Serial.print(".");
         #endif
     }
 
@@ -440,14 +442,14 @@ String response = R"rawliteral(
         // Update the flag to indicate connection success
         isConnected = true; 
         #ifdef SERIAL_DEBUG
-        Serial.println("Connected!");
-        Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
+          Serial.println("Connected!");
+          Serial.print("IP address: ");
+          Serial.println(WiFi.localIP());
         #endif
 
     } else {
         #ifdef SERIAL_DEBUG
-        Serial.println("Failed to connect.");
+          Serial.println("Failed to connect.");
         #endif
 
         // Revert to AP mode if connection fails
@@ -478,7 +480,7 @@ String readStringFromEEPROM(int address) {
 
 void EEPROM_Config_Begin(){
   #ifdef SERIAL_DEBUG
-  Serial.println("\nEEPROM Data RW stated.");
+    Serial.println("\nEEPROM Data RW stated.");
   #endif
 
   // Initialize EEPROM
@@ -490,12 +492,12 @@ void EEPROM_Config_Begin(){
   client_uid = EEPROM.read(UID_ADDR);
 
   #ifdef SERIAL_DEBUG
-  Serial.print("Stored UID: ");
-  Serial.println(client_uid);
-  Serial.print("Stored SSID: ");
-  Serial.println(client_ssid);
-  Serial.print("Stored Password: ");
-  Serial.println(client_password);
+    Serial.print("Stored UID: ");
+    Serial.println(client_uid);
+    Serial.print("Stored SSID: ");
+    Serial.println(client_ssid);
+    Serial.print("Stored Password: ");
+    Serial.println(client_password);
   #endif
 
   ssid = client_ssid;
@@ -519,7 +521,7 @@ void EEPROM_Config_End(){
   }
 
     #ifdef SERIAL_DEBUG
-    Serial.println("EEPROM setup is done");
+      Serial.println("EEPROM setup is done");
     #endif
 }
 
@@ -528,9 +530,9 @@ void WIFI_Config() {
     WiFi.softAP(ap_ssid, ap_password);
 
     #ifdef SERIAL_DEBUG
-    Serial.println("Access Point started");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.softAPIP());
+      Serial.println("Access Point started");
+      Serial.print("IP address: ");
+      Serial.println(WiFi.softAPIP());
     #endif
     
     server.on("/", handleRoot);
@@ -572,11 +574,11 @@ void Camara_Config() {
     config.pixel_format = PIXFORMAT_JPEG;
     config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.jpeg_quality = 12;
+    config.jpeg_quality = 4; // before 12
     config.fb_count = 2;
 
     if (psramFound()) {
-        config.jpeg_quality = 10;
+        config.jpeg_quality = 4; // before 10
         config.fb_count = 2;
         config.grab_mode = CAMERA_GRAB_LATEST;
     } else {
@@ -588,7 +590,7 @@ void Camara_Config() {
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
         #ifdef SERIAL_DEBUG
-        Serial.printf("Camera init failed with error 0x%x\n", err);
+          Serial.printf("Camera init failed with error 0x%x\n", err);
         #endif
         return;
     }
@@ -602,12 +604,12 @@ void Camara_Config() {
 void I2c_Config() {
     if (!Wire.begin(SDA_PIN, SCL_PIN, 100000)) {
         #ifdef SERIAL_DEBUG
-        Serial.println("I2C initialization failed!");
+          Serial.println("I2C initialization failed!");
         #endif
         while(1);
     }
     #ifdef SERIAL_DEBUG
-    Serial.println("ESP32 I2C Master initialized");
+      Serial.println("ESP32 I2C Master initialized");
     #endif
 }
 
@@ -619,8 +621,8 @@ void SetBaseURL() {
         String response = http.getString();
 
         #if defined(SERIAL_DEBUG)
-        Serial.println("HTTP Response code: " + String(httpResponseCode));
-        Serial.println("Response: " + response);
+          Serial.println("HTTP Response code: " + String(httpResponseCode));
+          Serial.println("Response: " + response);
         #endif
 
         // Parse the JSON response
@@ -629,8 +631,8 @@ void SetBaseURL() {
 
         if (error) {
             #if defined(SERIAL_DEBUG)
-            Serial.print("JSON parsing failed: ");
-            Serial.println(error.c_str());
+              Serial.print("JSON parsing failed: ");
+              Serial.println(error.c_str());
             #endif
 
             http.end(); // End the HTTP connection
@@ -644,29 +646,51 @@ void SetBaseURL() {
                 clientURL = result;
 
                 #if defined(SERIAL_DEBUG)
-                Serial.println("Updated clientURL: " + clientURL);
+                  Serial.println("Updated clientURL: " + clientURL);
                 #endif
             }
         }
     } else {
         #if defined(SERIAL_DEBUG)
-        Serial.println("HTTP GET request failed with response code: " + String(httpResponseCode));
+          Serial.println("HTTP GET request failed with response code: " + String(httpResponseCode));
         #endif
     }
 
     http.end(); // End the HTTP connection
 }
 
+void hardCodeWiFiConnection(){
+    WiFi.begin("SLT_FIBRE","aa8888aa");
+    unsigned long startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+        delay(500);
+        #ifdef SERIAL_DEBUG
+          Serial.print(".");
+        #endif
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        // Update the flag to indicate connection success
+        isConnected = true;
+        #ifdef SERIAL_DEBUG
+          Serial.println("Connected!");
+          Serial.print("IP address: ");
+          Serial.println(WiFi.localIP());
+        #endif
+    }
+}
+
 void setup() {
     #ifdef SERIAL_DEBUG
-    Serial.begin(9600);
-    Serial.setDebugOutput(true);
-    Serial.println("\nESP32 Master Started");
+      Serial.begin(9600);
+      Serial.setDebugOutput(true);
+      Serial.println("\nESP32 Master Started");
     #endif
 
     dht.begin();
     EEPROM_Config_Begin();
-    WIFI_Config();
+    // WIFI_Config();
+    hardCodeWiFiConnection();
     Camara_Config();
     I2c_Config();
     EEPROM_Config_End();
@@ -685,11 +709,11 @@ void loop() {
         if(roverCurrentState == 1){
           if (captureAndUploadImage()) {
             #ifdef SERIAL_DEBUG
-            Serial.println("Image captured and uploaded successfully");
+              Serial.println("Image captured and uploaded successfully");
             #endif
           } else {
             #ifdef SERIAL_DEBUG
-            Serial.println("Failed to capture or upload image");
+              Serial.println("Failed to capture or upload image");
             #endif
           }
         }else{
@@ -699,7 +723,7 @@ void loop() {
         }
       } else {
         #ifdef SERIAL_DEBUG
-        Serial.println("WiFi not connected");
+          Serial.println("WiFi not connected");
         #endif
         // Attempt to reconnect
         WiFi.reconnect();
@@ -712,7 +736,8 @@ void loop() {
     #ifdef SERIAL_DEBUG
       Serial.println("Get rover status");
     #endif
-    baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+    // baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
+    baseURL = "http://192.168.1.22:8000";
     String fullURL = baseURL + "/api/user/" + String(uid);
     http.begin(fullURL);
     http.addHeader("Content-Type", "application/json");
@@ -768,7 +793,7 @@ void loop() {
           #ifdef SERIAL_DEBUG
           Serial.println("Move to Deep sleep");
           #endif
-          delay(60 * 5 * 1000);
+          delay(60 * 1 * 1000);
       } else if(result == 3) {
           #ifdef SERIAL_DEBUG
           Serial.println("Reset the rover for maintenance");

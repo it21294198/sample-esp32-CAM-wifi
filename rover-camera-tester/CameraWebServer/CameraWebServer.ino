@@ -72,14 +72,15 @@ void setup() {
   //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12;
+  config.jpeg_quality = 4; // before 12
   config.fb_count = 1;
 
   // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
   //                      for larger pre-allocated frame buffer.
   if (config.pixel_format == PIXFORMAT_JPEG) {
     if (psramFound()) {
-      config.jpeg_quality = 10;
+      // config.jpeg_quality = 5;  // Range: 0 (best) to 63 (worst)
+      config.jpeg_quality = 4; // before 10
       config.fb_count = 2;
       config.grab_mode = CAMERA_GRAB_LATEST;
     } else {

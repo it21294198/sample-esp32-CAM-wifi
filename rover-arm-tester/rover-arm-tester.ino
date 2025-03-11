@@ -38,9 +38,9 @@ const int stepSequence[8][4] = {
     {1, 0, 0, 1}  // Step 8
 };
 
-// int16_t xValues[BUFFER_SIZE] = {2, 4};
+// int16_t xValues[BUFFER_SIZE] = {2, 3};
 // int16_t yValues[BUFFER_SIZE] = {100, 200};
-int16_t xValues[BUFFER_SIZE] = {2, 3};
+int16_t xValues[BUFFER_SIZE] = {2, 4};
 int16_t yValues[BUFFER_SIZE] = {100, 200};
 
 int currentHorizontalPosition = 0;
@@ -117,7 +117,7 @@ void moveToHorizontalPosition()
 
   for (int i = 0; i < BUFFER_SIZE; i++){
     moveStepperLine(xValues[i]);
-    moveServoAngle(map(yValues[i],0,400,80,170)); // max 170 - min 80
+    moveServoAngle(map(yValues[i],0,400,80,180)); // max 170 - min 80
   }
 }
 
@@ -125,7 +125,7 @@ void moveStepperLine(int horizontalTarget){
         while (currentHorizontalPosition <= horizontalTarget)
         {
             stepMotor(true);
-            if(timer>=10000){
+            if(timer>=4000){
               moveToHorizontalPositionTimer();
             }
             timer++;
@@ -140,7 +140,7 @@ void moveServoAngle(int angle){
       delay(50);
     }
 
-    performZAction();
+    // performZAction();
 
     for(int i = angle ; i <= 180 ; i++){
       mainArmServo.write(i);
@@ -159,8 +159,8 @@ void performZAction() {
     unsigned long startTime = millis(); // Record the start time
 
     // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
-    // while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000)) {  
-    while ((millis() - startTime < 7000)) {  
+    while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000)) {  
+    // while ((millis() - startTime < 7000)) {  
         digitalWrite(Z_ARM_DOWN_PIN, HIGH);
     }
     digitalWrite(Z_ARM_DOWN_PIN, LOW); // Stop moving down after timeout or endpoint trigger

@@ -100,6 +100,9 @@ void setup()
   digitalWrite(Z_ARM_UP_PIN, LOW);
   digitalWrite(Z_ARM_DOWN_PIN, LOW);
   delay(1000);
+  gotoInitialServoArmPoint();
+  gotoInitialStepperArmPoint();
+  delay(1000);
 }
 
 void loop()
@@ -240,6 +243,8 @@ void startRoverOperation()
 #if SERIAL_DEBUG
   Serial.println("Move_Rover_Forward");
 #endif
+  gotoInitialServoArmPoint();
+  gotoInitialStepperArmPoint();
   moveRoverForward();
 
   delay(50);
@@ -247,45 +252,47 @@ void startRoverOperation()
   roverCurrentState = 1;
 }
 
-void moveToHorizontalPosition()
-{
-#if SERIAL_DEBUG
-  Serial.println("Starting arm movements");
-#endif
-
-  for (int i = 0; i < count; i++)
-  {
-    moveStepperLine(xValues[i]);
-    moveServoAngle(map(yValues[i], 0, 40, 180, 80)); // max 180 - min 80
-  }
-}
-
-void moveToHorizontalPositionTimer()
-{
+void moveToHorizontalPositionTimer(){
   currentHorizontalPosition++;
   timer = 0;
-#if SERIAL_DEBUG
-  Serial.println(currentHorizontalPosition);
-#endif
+  #if SERIAL_DEBUG
+    Serial.println(currentHorizontalPosition);
+  #endif
 }
 
-void moveStepperLine(int horizontalTarget)
+void moveToHorizontalPosition()
 {
-  while (currentHorizontalPosition <= horizontalTarget)
-  {
-    stepMotor(true);
-    if (timer >= 5000) // 10,000
-    {
-      moveToHorizontalPositionTimer();
-    }
-    timer++;
-    delay(1);
+  #if SERIAL_DEBUG
+      Serial.println("Usual arm movements");
+  #endif
+
+  for (int i = 0; i < count; i++){
+    moveStepperLine(map(xValues[i],110,180,0,20));
+    moveServoAngle(map(yValues[i],0,40,170,80)); // max 170 - min 80
   }
+}
+
+void moveStepperLine(int horizontalTarget){
+        #if SERIAL_DEBUG
+          Serial.println(horizontalTarget);
+        #endif
+        while (currentHorizontalPosition <= horizontalTarget)
+        {
+            stepMotor(true);
+            if(timer>=5000){
+              moveToHorizontalPositionTimer();
+            }
+            timer++;
+            delay(1);
+        }
 }
 
 void moveServoAngle(int angle)
 {
-
+  #if SERIAL_DEBUG
+    Serial.print(" : ");
+    Serial.print(angle);
+  #endif
   for (int i = 180; i >= angle; i--)
   {
     mainArmServo.write(i);
@@ -313,8 +320,8 @@ void performZAction()
   unsigned long startTime = millis(); // Record the start time
 
   // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
-  // while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000))
-  while ((millis() - startTime < 7000))
+  while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000))
+  // while ((millis() - startTime < 7000))
   {
     digitalWrite(Z_ARM_DOWN_PIN, HIGH);
   }
