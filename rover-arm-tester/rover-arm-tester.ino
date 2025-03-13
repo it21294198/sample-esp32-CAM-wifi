@@ -4,7 +4,7 @@
 #define SERIAL_DEBUG 1
 #define ARM_TEST_MODE 1
 
-#define BUFFER_SIZE 2
+#define BUFFER_SIZE 3
 
 #define STEPPER_PIN1 2
 #define STEPPER_PIN2 3
@@ -40,12 +40,13 @@ const int stepSequence[8][4] = {
 
 // int16_t xValues[BUFFER_SIZE] = {2, 3};
 // int16_t yValues[BUFFER_SIZE] = {100, 200};
-int16_t xValues[BUFFER_SIZE] = {2, 4};
-int16_t yValues[BUFFER_SIZE] = {100, 200};
+int16_t xValues[BUFFER_SIZE] = {5, 10, 15};
+int16_t yValues[BUFFER_SIZE] = {100, 200, 300};
 
 int currentHorizontalPosition = 0;
 long timer = 0;
 bool isReset = false;
+int initialTimerValue = 4000;
 
 void setup()
 {
@@ -103,6 +104,7 @@ void gotoInitialServoArmPoint(){
 
 void moveToHorizontalPositionTimer(){
   currentHorizontalPosition++;
+  initialTimerValue += 100;
   timer = 0;
   #if SERIAL_DEBUG
     Serial.println(currentHorizontalPosition);
@@ -125,7 +127,7 @@ void moveStepperLine(int horizontalTarget){
         while (currentHorizontalPosition <= horizontalTarget)
         {
             stepMotor(true);
-            if(timer>=4000){
+            if(timer>=initialTimerValue){
               moveToHorizontalPositionTimer();
             }
             timer++;

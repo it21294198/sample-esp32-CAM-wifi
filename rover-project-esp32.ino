@@ -64,6 +64,7 @@ bool isConnected = false;
 
 // defalt or from user
 String ssid = "";
+String url = "";
 String password = "";
 int uid = 1;
 
@@ -125,7 +126,8 @@ bool captureAndUploadImage() {
 
     // Make POST request
     // baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
-    baseURL = "http://192.168.1.22:8000";
+    // baseURL = "http://192.168.1.22:8000";
+    baseURL = url;
     String roverURL = baseURL + "/rover";
     // String roverURL = baseURL + "/test/rover";
     http.begin(roverURL);
@@ -341,13 +343,16 @@ String response = R"rawliteral(
         <form action="/submit" method="POST">
 
           <label for="username">User ID</label>
-          <input type="text" id="ssid" name="uid" value="[[uid]]" placeholder="Enter User Id" required>
+          <input type="text" id="uid" name="uid" value="[[uid]]" placeholder="Enter User Id" required>
+
+          <label for="username">User ID</label>
+          <input type="text" id="url" name="url" value="[[url]]" placeholder="Enter URL" required>
 
           <label for="username">Username</label>
           <input type="text" id="ssid" name="ssid" value="[[ssid]]" placeholder="Enter WIFI Router Name" required>
 
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" value="[[password]]" placeholder="Enter WIFI Router Password" required>
+          <input type="text" id="password" name="password" value="[[password]]" placeholder="Enter WIFI Router Password" required>
 
           <input type="submit" value="Submit">
         </form>
@@ -357,6 +362,7 @@ String response = R"rawliteral(
   )rawliteral";
 
   response.replace("[[ssid]]", ssid);
+  response.replace("[[url]]", url);
   response.replace("[[password]]", password);
   response.replace("[[uid]]", String(uid));
   server.send(200, "text/html", response);
@@ -364,6 +370,7 @@ String response = R"rawliteral(
 
 void handleSubmit() {
   ssid = server.arg("ssid");
+  url = server.arg("url");
   password = server.arg("password");
   uid = server.arg("uid").toInt();
 
@@ -659,26 +666,26 @@ void SetBaseURL() {
     http.end(); // End the HTTP connection
 }
 
-void hardCodeWiFiConnection(){
-    WiFi.begin("SLT_FIBRE","aa8888aa");
-    unsigned long startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
-        delay(500);
-        #ifdef SERIAL_DEBUG
-          Serial.print(".");
-        #endif
-    }
+// void hardCodeWiFiConnection(){
+//     WiFi.begin("SLT_FIBRE","aa8888aa");
+//     unsigned long startAttemptTime = millis();
+//     while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+//         delay(500);
+//         #ifdef SERIAL_DEBUG
+//           Serial.print(".");
+//         #endif
+//     }
 
-    if (WiFi.status() == WL_CONNECTED) {
-        // Update the flag to indicate connection success
-        isConnected = true;
-        #ifdef SERIAL_DEBUG
-          Serial.println("Connected!");
-          Serial.print("IP address: ");
-          Serial.println(WiFi.localIP());
-        #endif
-    }
-}
+//     if (WiFi.status() == WL_CONNECTED) {
+//         // Update the flag to indicate connection success
+//         isConnected = true;
+//         #ifdef SERIAL_DEBUG
+//           Serial.println("Connected!");
+//           Serial.print("IP address: ");
+//           Serial.println(WiFi.localIP());
+//         #endif
+//     }
+// }
 
 void setup() {
     #ifdef SERIAL_DEBUG
@@ -689,8 +696,8 @@ void setup() {
 
     dht.begin();
     EEPROM_Config_Begin();
-    // WIFI_Config();
-    hardCodeWiFiConnection();
+    WIFI_Config();
+    // hardCodeWiFiConnection();
     Camara_Config();
     I2c_Config();
     EEPROM_Config_End();
@@ -737,7 +744,8 @@ void loop() {
       Serial.println("Get rover status");
     #endif
     // baseURL = "https://axum-jwt-static-page-template-4gs7.shuttle.app";
-    baseURL = "http://192.168.1.22:8000";
+    // baseURL = "http://192.168.1.22:8000";
+    baseURL = url;
     String fullURL = baseURL + "/api/user/" + String(uid);
     http.begin(fullURL);
     http.addHeader("Content-Type", "application/json");
