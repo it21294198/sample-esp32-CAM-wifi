@@ -7,18 +7,17 @@
 #define STEPPER_PIN3 4
 #define STEPPER_PIN4 5
 
-#define ENDPOINT_PIN 6
-#define ENDPOINT_MOTOR 7
+#define MAIN_ARM_SERVO_PIN 6 //11
+#define BUTTON_PIN 7 //8
 
-#define BUTTON_PIN 8
+#define Z_ARM_DOWN_PIN 8 //13
+#define Z_ARM_UP_PIN 9 //12
 
-#define LEFT_ENDPOINT_PIN 9
 #define ROVER_WHEEL_PIN 10
+#define LEFT_ENDPOINT_PIN 11 //9
 
-#define MAIN_ARM_SERVO_PIN 11
-
-#define Z_ARM_UP_PIN 12
-#define Z_ARM_DOWN_PIN 13
+#define ENDPOINT_PIN  12 // 6
+#define ENDPOINT_MOTOR 13 //7
 
 #define I2C_SLAVE_ADDR 0x08
 
@@ -63,6 +62,7 @@ int16_t yValues[BUFFER_SIZE];
 int currentHorizontalPosition = 0;
 long timer = 0;
 bool isReset = false;
+int initialTimerValue = 4000;
 
 void setup()
 {
@@ -254,6 +254,7 @@ void startRoverOperation()
 
 void moveToHorizontalPositionTimer(){
   currentHorizontalPosition++;
+  initialTimerValue += 100;
   timer = 0;
   #if SERIAL_DEBUG
     Serial.println(currentHorizontalPosition);
@@ -267,8 +268,8 @@ void moveToHorizontalPosition()
   #endif
 
   for (int i = 0; i < count; i++){
-    moveStepperLine(map(xValues[i],110,180,0,20));
-    moveServoAngle(map(yValues[i],0,40,170,80)); // max 170 - min 80
+    moveStepperLine(xValues[i]);
+    moveServoAngle(yValues[i]);
   }
 }
 
@@ -279,7 +280,7 @@ void moveStepperLine(int horizontalTarget){
         while (currentHorizontalPosition <= horizontalTarget)
         {
             stepMotor(true);
-            if(timer>=5000){
+            if(timer>=initialTimerValue){
               moveToHorizontalPositionTimer();
             }
             timer++;
@@ -320,7 +321,7 @@ void performZAction()
   unsigned long startTime = millis(); // Record the start time
 
   // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
-  while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000))
+  while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 8000))
   // while ((millis() - startTime < 7000))
   {
     digitalWrite(Z_ARM_DOWN_PIN, HIGH);
@@ -331,7 +332,7 @@ void performZAction()
 
   // Move the arm up
   digitalWrite(Z_ARM_UP_PIN, HIGH);
-  delay(7000);
+  delay(8000);
   digitalWrite(Z_ARM_UP_PIN, LOW);
 
   delay(3000); // Final wait time
@@ -357,14 +358,17 @@ void moveRoverForward()
   Serial.println("Move rover next");
 #endif
   digitalWrite(ROVER_WHEEL_PIN, HIGH);
-  delay(2 * 1000); // move wheel for 2 seconds
+  delay(1 * 1000); // move wheel for 2 seconds
   digitalWrite(ROVER_WHEEL_PIN, LOW);
-  delay(2 * 1000);
+  delay(1 * 1000);
 }
 
 void gotoInitialStepperArmPoint()
 {
-  while (digitalRead(LEFT_ENDPOINT_PIN) == LOW)
+  #if SERIAL_DEBUG
+    Serial.println("Goto start");
+  #endif
+  while (digitalRead(LEFT_ENDPOINT_PIN) == HIGH)
   {
     stepMotor(false);
     delay(1);

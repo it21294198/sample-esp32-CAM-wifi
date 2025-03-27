@@ -11,16 +11,16 @@
 #define STEPPER_PIN3 4
 #define STEPPER_PIN4 5
 
-#define ENDPOINT_PIN 6
-#define ENDPOINT_MOTOR 7
+#define ENDPOINT_PIN 12
+#define ENDPOINT_MOTOR 13
 
-#define LEFT_ENDPOINT_PIN 9
+#define LEFT_ENDPOINT_PIN 11
 #define ROVER_WHEEL_PIN 10
 
-#define MAIN_ARM_SERVO_PIN 11
+#define MAIN_ARM_SERVO_PIN 6
 
-#define Z_ARM_UP_PIN 12
-#define Z_ARM_DOWN_PIN 13
+#define Z_ARM_DOWN_PIN 8
+#define Z_ARM_UP_PIN 9
 
 #define PI 3.1415926535897932384626433832795
 
@@ -89,11 +89,17 @@ void moveNextRover(){
 
 void gotoInitialStepperArmPoint()
 {
-    while (digitalRead(LEFT_ENDPOINT_PIN) == LOW)
+    #if SERIAL_DEBUG
+      Serial.println("Go to initial pos");
+    #endif
+    while (digitalRead(LEFT_ENDPOINT_PIN) == HIGH)
     {
         stepMotor(false);
         delay(1);
     }
+    #if SERIAL_DEBUG
+      Serial.println("At the initial pos");
+    #endif
     currentHorizontalPosition = 0;
 }
 
@@ -142,7 +148,7 @@ void moveServoAngle(int angle){
       delay(50);
     }
 
-    // performZAction();
+    performZAction();
 
     for(int i = angle ; i <= 180 ; i++){
       mainArmServo.write(i);
@@ -161,6 +167,9 @@ void performZAction() {
     unsigned long startTime = millis(); // Record the start time
 
     // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
+    #if SERIAL_DEBUG
+      Serial.println("Go down");
+    #endif
     while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 7000)) {  
     // while ((millis() - startTime < 7000)) {  
         digitalWrite(Z_ARM_DOWN_PIN, HIGH);
@@ -170,6 +179,9 @@ void performZAction() {
     perfomrPollination();
 
     // Move the arm up
+    #if SERIAL_DEBUG
+      Serial.println("Go up");
+    #endif
     digitalWrite(Z_ARM_UP_PIN, HIGH);
     delay(7000);
     digitalWrite(Z_ARM_UP_PIN, LOW);
@@ -203,7 +215,7 @@ void resetRover()
       Serial.println("Resetting the rover arm");
   #endif
 
-  gotoInitialStepperArmPoint();
+  // gotoInitialStepperArmPoint();
 
   for(int i = 180 ; i >= 0 ; i--){
     mainArmServo.write(i);
@@ -216,11 +228,30 @@ void resetRover()
   }
 }
 
+void testServoArm(){
+  for(int i = 0 ; i <= 180 ; i++){
+    mainArmServo.write(i);
+    delay(50);
+  }
+  for(int i = 180 ; i >= 0 ; i--){
+    mainArmServo.write(i);
+    delay(50);
+  }
+}
+
+void testEndPointMotor(){
+  if(digitalRead(ENDPOINT_PIN)==1){
+    digitalWrite(ENDPOINT_MOTOR, HIGH);
+    delay(1000);
+    digitalWrite(ENDPOINT_MOTOR, LOW);
+  }
+}
+
 void testLeftRightEndButton(){
   Serial.print("Endpoint status : ");
   Serial.print(digitalRead(ENDPOINT_PIN));
   Serial.print(" Left status : ");
-  Serial.print(digitalRead(LEFT_ENDPOINT_PIN));
+  Serial.println(digitalRead(LEFT_ENDPOINT_PIN));
   delay(100);
 }
 
@@ -266,15 +297,20 @@ void loop()
   // }
 
   // moveServoAngle(map(0,0,400,80,170));
-  // testLeftRightEndButton();
+  // testServoArm();
+  // testEndPointMotor();
   // resetRover();
   // perfomrPollination();
   // performZAction();
+  // gotoInitialServoArmPoint();
 
-  gotoInitialServoArmPoint();
+  // testLeftRightEndButton();
+
+  // gotoInitialStepperArmPoint();
+  // moveStepperLine(3);
+
   gotoInitialStepperArmPoint();
   moveToHorizontalPosition();
-  // gotoInitialStepperArmPoint();
   // moveNextRover();
 
 }

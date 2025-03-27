@@ -15,18 +15,6 @@ void loop() {
     moveRoverForwardNonBlocking();
 }
 
-void moveRoverForwardNonBlocking() {
-    unsigned long currentMillis = millis();
 
-    // Toggle the wheel state every 'moveDuration' milliseconds
-    if (currentMillis - previousMillis >= moveDuration) {
-        previousMillis = currentMillis;
-        wheelState = !wheelState;
-        digitalWrite(ROVER_WHEEL_PIN, wheelState);
-
-        #ifdef SERIAL_DEBUG
-        Serial.println(wheelState ? "Wheel ON" : "Wheel OFF");
-        #endif
-    }
 }
 
