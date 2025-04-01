@@ -8,7 +8,7 @@
 #define STEPPER_PIN4 5
 
 #define MAIN_ARM_SERVO_PIN 6 //11
-#define BUTTON_PIN 7 //8
+#define ROVER_REVERS_WHEEL_PIN 7 //8
 
 #define Z_ARM_DOWN_PIN 8 //13
 #define Z_ARM_UP_PIN 9 //12
@@ -74,18 +74,15 @@ void setup()
 // Initialize serial communication for debugging
 #if SERIAL_DEBUG
   Serial.begin(9600);
-  Serial.println("Arduino I2C Slave initialized");
+  Serial.println("Arduino_I2C_Slave_initialized");
 #endif
-
-  // Setup button pin with internal pullup
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   mainArmServo.attach(MAIN_ARM_SERVO_PIN);
 
-  pinMode(ENDPOINT_PIN, INPUT);
-  pinMode(ENDPOINT_MOTOR, OUTPUT);
-
+  pinMode(ENDPOINT_PIN, INPUT_PULLUP);
   pinMode(LEFT_ENDPOINT_PIN, INPUT);
+
+  pinMode(ENDPOINT_MOTOR, OUTPUT);
 
   pinMode(STEPPER_PIN1, OUTPUT);
   pinMode(STEPPER_PIN2, OUTPUT);
@@ -93,12 +90,14 @@ void setup()
   pinMode(STEPPER_PIN4, OUTPUT);
 
   pinMode(ROVER_WHEEL_PIN, OUTPUT);
+  pinMode(ROVER_REVERS_WHEEL_PIN, OUTPUT);
 
-  pinMode(Z_ARM_DOWN_PIN, OUTPUT);
   pinMode(Z_ARM_UP_PIN, OUTPUT);
+  pinMode(Z_ARM_DOWN_PIN, OUTPUT);
 
   digitalWrite(Z_ARM_UP_PIN, LOW);
   digitalWrite(Z_ARM_DOWN_PIN, LOW);
+  digitalWrite(ROVER_REVERS_WHEEL_PIN, LOW);
   delay(1000);
   gotoInitialServoArmPoint();
   gotoInitialStepperArmPoint();
@@ -115,10 +114,9 @@ void loop()
   if (resetReceived)
   {
 #if SERIAL_DEBUG
-    Serial.println("Reset command received!");
+    Serial.println("Reset_command_received");
 #endif
     roverCurrentState = 2;
-
     currentIndex = 0;
     receivingLength = true;
     newData = false;
@@ -132,18 +130,17 @@ void loop()
   if (moveNextReceived)
   {
 #if SERIAL_DEBUG
-    Serial.println("Move_next command received!");
+    Serial.println("Move_next_command_received");
 #endif
+    isReset = false;
     roverCurrentState = 3;
     moveNextReceived = false;
-
     currentIndex = 0;
     receivingLength = true;
     newData = false;
 
     delay(1000);
     moveRoverForward();
-
     roverCurrentState = 1;
   }
 
@@ -254,7 +251,7 @@ void startRoverOperation()
 
 void moveToHorizontalPositionTimer(){
   currentHorizontalPosition++;
-  initialTimerValue += 100;
+  initialTimerValue += 10;
   timer = 0;
   #if SERIAL_DEBUG
     Serial.println(currentHorizontalPosition);
@@ -264,12 +261,13 @@ void moveToHorizontalPositionTimer(){
 void moveToHorizontalPosition()
 {
   #if SERIAL_DEBUG
-      Serial.println("Usual arm movements");
+      Serial.println("Usual_arm_movements");
   #endif
 
   for (int i = 0; i < count; i++){
     moveStepperLine(xValues[i]);
-    moveServoAngle(yValues[i]);
+    // map(value, fromLow, fromHigh, toLow, toHigh)
+    moveServoAngle(map(yValues[i],180,0,0,180));
   }
 }
 
@@ -321,8 +319,8 @@ void performZAction()
   unsigned long startTime = millis(); // Record the start time
 
   // Move the arm down until the endpoint switch is triggered OR 7 seconds have passed
-  while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 8000))
-  // while ((millis() - startTime < 7000))
+  // while (!digitalRead(ENDPOINT_PIN) && (millis() - startTime < 8000))
+  while ((millis() - startTime < 8000))
   {
     digitalWrite(Z_ARM_DOWN_PIN, HIGH);
   }
@@ -355,7 +353,7 @@ void stepMotor(bool direction)
 void moveRoverForward()
 {
 #if SERIAL_DEBUG
-  Serial.println("Move rover next");
+  Serial.println("Move_next_slot");
 #endif
   digitalWrite(ROVER_WHEEL_PIN, HIGH);
   delay(1 * 1000); // move wheel for 2 seconds
@@ -366,7 +364,7 @@ void moveRoverForward()
 void gotoInitialStepperArmPoint()
 {
   #if SERIAL_DEBUG
-    Serial.println("Goto start");
+    Serial.println("Goto_start");
   #endif
   while (digitalRead(LEFT_ENDPOINT_PIN) == HIGH)
   {
@@ -374,6 +372,8 @@ void gotoInitialStepperArmPoint()
     delay(1);
   }
   currentHorizontalPosition = 0;
+  initialTimerValue = 4000;
+  timer = 0;
 }
 
 void gotoInitialServoArmPoint()
@@ -382,29 +382,27 @@ void gotoInitialServoArmPoint()
   mainArmServo.write(mainArmInitialPoint);
 }
 
+void gotoRoverStartPoint(){
+  // whole rover go back to initial point
+  digitalWrite(ROVER_REVERS_WHEEL_PIN, HIGH);
+  delay(5000);
+  digitalWrite(ROVER_REVERS_WHEEL_PIN, LOW);
+}
+
 void resetRover()
 {
   if (isReset)
   {
-    return 0;
-  }
-  isReset = true;
-
-#if SERIAL_DEBUG
-  Serial.println("Resetting the rover arm");
-#endif
-
-  gotoInitialStepperArmPoint();
-
-  for (int i = 170; i >= 80; i--)
-  {
-    mainArmServo.write(i);
-    delay(50);
-  }
-
-  for (int i = 80; i <= 170; i++)
-  {
-    mainArmServo.write(i);
-    delay(50);
+    #if SERIAL_DEBUG
+      Serial.println("Rover_reset");
+    #endif
+  }else{
+    isReset = true;
+    #if SERIAL_DEBUG
+      Serial.println("Rover_resetting");
+    #endif
+    gotoInitialStepperArmPoint();
+    gotoInitialServoArmPoint();
+    gotoRoverStartPoint();
   }
 }
